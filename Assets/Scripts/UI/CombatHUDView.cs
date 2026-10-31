@@ -539,9 +539,30 @@ namespace LuckyDuelist.UI
             _isInitialized = true;
         }
 
+        private static Font GetDefaultFont()
+        {
+            Font font = null;
+            try
+            {
+                font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            }
+            catch { }
+
+            if (font == null)
+            {
+                try
+                {
+                    font = Font.CreateDynamicFontFromOSFont("Arial", 14);
+                }
+                catch { }
+            }
+
+            return font;
+        }
+
         private void BuildProceduralHUDChildren(RectTransform root)
         {
-            Font defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf") ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            Font defaultFont = GetDefaultFont();
 
             // 1. Health Bar (Top)
             var hpGo = new GameObject("HealthBar_Slider");
