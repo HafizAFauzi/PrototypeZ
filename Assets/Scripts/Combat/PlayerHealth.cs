@@ -18,6 +18,8 @@ namespace LuckyDuelist.Combat
         [SerializeField] private int currentHealth = 100;
         [SerializeField] private int healSymbolAmount = 20;
 
+        private bool _isSubscribed = false;
+
         public int MaxHealth => maxHealth;
         public int CurrentHealth => currentHealth;
         public float HealthPercent => maxHealth > 0 ? (float)currentHealth / maxHealth : 0f;
@@ -33,20 +35,19 @@ namespace LuckyDuelist.Combat
             }
             Instance = this;
             currentHealth = maxHealth;
+
+            // Subscribe in Awake so EditMode unit tests receive events immediately upon AddComponent
+            SubscribeEvents();
         }
 
         private void OnEnable()
         {
-            EventBus.Subscribe<PlayerRevivedEvent>(OnPlayerRevived);
-            EventBus.Subscribe<StageStartedEvent>(OnStageStarted);
-            EventBus.Subscribe<TurnCommittedEvent>(OnTurnCommitted);
+            SubscribeEvents();
         }
 
         private void OnDisable()
         {
-            EventBus.Unsubscribe<PlayerRevivedEvent>(OnPlayerRevived);
-            EventBus.Unsubscribe<StageStartedEvent>(OnStageStarted);
-            EventBus.Unsubscribe<TurnCommittedEvent>(OnTurnCommitted);
+            UnsubscribeEvents();
         }
 
         private void Start()
@@ -57,7 +58,26 @@ namespace LuckyDuelist.Combat
 
         private void OnDestroy()
         {
+            UnsubscribeEvents();
             if (Instance == this) Instance = null;
+        }
+
+        public void SubscribeEvents()
+        {
+            if (_isSubscribed) return;
+            EventBus.Subscribe<PlayerRevivedEvent>(OnPlayerRevived);
+            EventBus.Subscribe<StageStartedEvent>(OnStageStarted);
+            EventBus.Subscribe<TurnCommittedEvent>(OnTurnCommitted);
+            _isSubscribed = true;
+        }
+
+        public void UnsubscribeEvents()
+        {
+            if (!_isSubscribed) return;
+            EventBus.Unsubscribe<PlayerRevivedEvent>(OnPlayerRevived);
+            EventBus.Unsubscribe<StageStartedEvent>(OnStageStarted);
+            EventBus.Unsubscribe<TurnCommittedEvent>(OnTurnCommitted);
+            _isSubscribed = false;
         }
 
         /// <summary>

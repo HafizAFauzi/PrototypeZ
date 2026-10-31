@@ -37,6 +37,7 @@ namespace LuckyDuelist.Tests
 
             _playerHealthGo = new GameObject("TestPlayerHealth");
             _playerHealth = _playerHealthGo.AddComponent<PlayerHealth>();
+            _playerHealth.SubscribeEvents();
         }
 
         [TearDown]
