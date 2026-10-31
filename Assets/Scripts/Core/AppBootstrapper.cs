@@ -3,6 +3,7 @@ using LuckyDuelist.Combat;
 using LuckyDuelist.Experiment;
 using LuckyDuelist.UI;
 using LuckyDuelist.Monetization;
+using LuckyDuelist.Telemetry;
 
 namespace LuckyDuelist.Core
 {
@@ -21,6 +22,8 @@ namespace LuckyDuelist.Core
             EnsureDummyAdPlayer();
             EnsureVirtualIAPStore();
             EnsureCosmeticApplier();
+            EnsureTelemetryService();
+            EnsureSettlementSurveyView();
             EnsureResearcherOverlay();
         }
 
@@ -87,6 +90,28 @@ namespace LuckyDuelist.Core
                 go.AddComponent<CosmeticApplier>();
                 Object.DontDestroyOnLoad(go);
                 Debug.Log("[AppBootstrapper] Auto-spawned persistent [CosmeticApplier].");
+            }
+        }
+
+        private static void EnsureTelemetryService()
+        {
+            if (TelemetryService.Instance == null)
+            {
+                GameObject go = new GameObject("[TelemetryService]");
+                go.AddComponent<TelemetryService>();
+                Object.DontDestroyOnLoad(go);
+                Debug.Log("[AppBootstrapper] Auto-spawned persistent [TelemetryService].");
+            }
+        }
+
+        private static void EnsureSettlementSurveyView()
+        {
+            if (SettlementSurveyView.Instance == null)
+            {
+                GameObject go = new GameObject("[SettlementSurveyView]");
+                go.AddComponent<SettlementSurveyView>();
+                Object.DontDestroyOnLoad(go);
+                Debug.Log("[AppBootstrapper] Auto-spawned persistent [SettlementSurveyView].");
             }
         }
 
