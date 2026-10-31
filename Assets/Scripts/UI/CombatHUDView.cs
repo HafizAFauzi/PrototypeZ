@@ -80,6 +80,11 @@ namespace LuckyDuelist.UI
             EventBus.Subscribe<TurnCommittedEvent>(OnTurnCommitted);
             EventBus.Subscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
             EventBus.Subscribe<WildJokerResolvedEvent>(OnWildJokerResolved);
+            EventBus.Subscribe<EnemyTelegraphStartedEvent>(OnEnemyTelegraphStarted);
+            EventBus.Subscribe<DefenseResolvedEvent>(OnDefenseResolved);
+            EventBus.Subscribe<EnemyTurnStartedEvent>(OnEnemyTurnStarted);
+            EventBus.Subscribe<EnemyTurnCompletedEvent>(OnEnemyTurnCompleted);
+            EventBus.Subscribe<CounterBuffStatusChangedEvent>(OnCounterBuffStatusChanged);
 
             RefreshExperimentGatedUI();
             RefreshHUD();
@@ -96,6 +101,11 @@ namespace LuckyDuelist.UI
             EventBus.Unsubscribe<TurnCommittedEvent>(OnTurnCommitted);
             EventBus.Unsubscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
             EventBus.Unsubscribe<WildJokerResolvedEvent>(OnWildJokerResolved);
+            EventBus.Unsubscribe<EnemyTelegraphStartedEvent>(OnEnemyTelegraphStarted);
+            EventBus.Unsubscribe<DefenseResolvedEvent>(OnDefenseResolved);
+            EventBus.Unsubscribe<EnemyTurnStartedEvent>(OnEnemyTurnStarted);
+            EventBus.Unsubscribe<EnemyTurnCompletedEvent>(OnEnemyTurnCompleted);
+            EventBus.Unsubscribe<CounterBuffStatusChangedEvent>(OnCounterBuffStatusChanged);
         }
 
         #region Event Handlers
@@ -175,6 +185,52 @@ namespace LuckyDuelist.UI
             if (wildJokerModal != null) wildJokerModal.SetActive(false);
             _pendingWildReelIndex = -1;
             RefreshHUD();
+        }
+
+        private void OnEnemyTelegraphStarted(EnemyTelegraphStartedEvent evt)
+        {
+            if (defensePromptText != null)
+            {
+                if (evt.AttackType == EnemyAttackType.UNPARRYABLE_RED)
+                {
+                    defensePromptText.text = "<b><color=#FF0055>⚠ [Q] HINDAR! (PELURU MERAH - TIDAK BISA DITANGKIS)</color></b>";
+                }
+                else
+                {
+                    defensePromptText.text = "<b><color=#FFE600>⚡ [E] PARRY PRESISI! (PELURU KUNING) ATAU [Q] HINDAR</color></b>";
+                }
+            }
+            UpdateActionButtonsState();
+        }
+
+        private void OnDefenseResolved(DefenseResolvedEvent evt)
+        {
+            if (defensePromptText != null)
+            {
+                defensePromptText.text = "[Q] HINDAR (Merah)   |   [E] PARRY (Kuning)";
+            }
+        }
+
+        private void OnEnemyTurnStarted(EnemyTurnStartedEvent evt)
+        {
+            UpdateActionButtonsState();
+        }
+
+        private void OnEnemyTurnCompleted(EnemyTurnCompletedEvent evt)
+        {
+            if (defensePromptText != null)
+            {
+                defensePromptText.text = "[Q] HINDAR (Merah)   |   [E] PARRY (Kuning)";
+            }
+            RefreshHUD();
+        }
+
+        private void OnCounterBuffStatusChanged(CounterBuffStatusChangedEvent evt)
+        {
+            if (defensePromptText != null && evt.IsActive)
+            {
+                defensePromptText.text = "<b><color=#00FFE0>[🗡️ COUNTER SIAP]</color></b>   [Q] HINDAR   |   [E] PARRY";
+            }
         }
 
         #endregion
@@ -277,6 +333,24 @@ namespace LuckyDuelist.UI
         {
             var controller = SlotRevolverController.Instance;
             if (controller == null) return;
+
+            // Check if active defense phase is running
+            if (DefenseQTEController.Instance != null && DefenseQTEController.Instance.IsDefensePhaseActive)
+            {
+                if (spinOrCommitButton != null) spinOrCommitButton.interactable = false;
+                if (spinOrCommitText != null) spinOrCommitText.text = "FASE BERTAHAN...";
+                if (respinAdButton != null) respinAdButton.interactable = false;
+                return;
+            }
+
+            // Check if aim stabilizer session is active
+            if (AimStabilizerController.Instance != null && AimStabilizerController.Instance.IsAiming)
+            {
+                if (spinOrCommitButton != null) spinOrCommitButton.interactable = false;
+                if (spinOrCommitText != null) spinOrCommitText.text = "MEMBIDIK...";
+                if (respinAdButton != null) respinAdButton.interactable = false;
+                return;
+            }
 
             if (controller.IsSpinning)
             {

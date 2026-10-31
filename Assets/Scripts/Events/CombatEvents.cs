@@ -245,4 +245,183 @@ namespace LuckyDuelist.Events
             Reason = reason;
         }
     }
+
+    #region Defense QTE & Dodge/Parry Events (Chat 4)
+
+    /// <summary>
+    /// Type of enemy gunshot attack.
+    /// Red = Unparryable (Player MUST Dodge [Q]).
+    /// Yellow = Parryable (Player CAN Parry [E] with precision, or Dodge [Q] safely).
+    /// </summary>
+    public enum EnemyAttackType
+    {
+        UNPARRYABLE_RED = 0,
+        PARRYABLE_YELLOW = 1
+    }
+
+    /// <summary>
+    /// Lateral camera sway direction for [Q] Dodge.
+    /// </summary>
+    public enum DodgeDirection
+    {
+        Left,
+        Right
+    }
+
+    /// <summary>
+    /// Resolution result for an incoming enemy bullet during Defense QTE.
+    /// </summary>
+    public enum DefenseResult
+    {
+        None,
+        DodgeSuccess,       // Player dodged [Q] in time (0 damage)
+        ParrySuccess,       // Player parried [E] yellow bullet in precision window (Critical Deflection Slash!)
+        ParryFailedRed,     // Player tried to parry [E] a red bullet (fails! Full 25 damage)
+        ParryFailedTiming,  // Player pressed [E] too early or too late
+        HitTaken            // Player took hit (failed to dodge/parry, 25 damage)
+    }
+
+    /// <summary>
+    /// Dispatched when the enemy bot begins aiming and telegraphing a shot with muzzle glow.
+    /// </summary>
+    public struct EnemyTelegraphStartedEvent
+    {
+        public EnemyAttackType AttackType;
+        public float TelegraphDuration;
+        public bool HasCounterBuff;
+        public int BurstIndex;
+        public int TotalBursts;
+        public int StageNumber;
+
+        public EnemyTelegraphStartedEvent(EnemyAttackType attackType, float telegraphDuration, bool hasCounterBuff, int burstIndex, int totalBursts, int stageNumber)
+        {
+            AttackType = attackType;
+            TelegraphDuration = telegraphDuration;
+            HasCounterBuff = hasCounterBuff;
+            BurstIndex = burstIndex;
+            TotalBursts = totalBursts;
+            StageNumber = stageNumber;
+        }
+    }
+
+    /// <summary>
+    /// Dispatched when the enemy pulls the trigger and bullet launches towards player camera.
+    /// </summary>
+    public struct EnemyBulletFiredEvent
+    {
+        public EnemyAttackType AttackType;
+        public float BulletTravelTime;
+        public int BurstIndex;
+        public int TotalBursts;
+
+        public EnemyBulletFiredEvent(EnemyAttackType attackType, float bulletTravelTime, int burstIndex, int totalBursts)
+        {
+            AttackType = attackType;
+            BulletTravelTime = bulletTravelTime;
+            BurstIndex = burstIndex;
+            TotalBursts = totalBursts;
+        }
+    }
+
+    /// <summary>
+    /// Dispatched when player executes a camera dodge sway [Q].
+    /// </summary>
+    public struct PlayerDodgeTriggeredEvent
+    {
+        public DodgeDirection Direction;
+        public float Duration;
+
+        public PlayerDodgeTriggeredEvent(DodgeDirection direction, float duration)
+        {
+            Direction = direction;
+            Duration = duration;
+        }
+    }
+
+    /// <summary>
+    /// Dispatched when player swings the left-hand parry knife to screen center [E].
+    /// </summary>
+    public struct PlayerParryTriggeredEvent
+    {
+        public float ActiveWindowDuration;
+
+        public PlayerParryTriggeredEvent(float activeWindowDuration)
+        {
+            ActiveWindowDuration = activeWindowDuration;
+        }
+    }
+
+    /// <summary>
+    /// Dispatched when an enemy bullet attack is resolved (dodge, parry, or hit).
+    /// </summary>
+    public struct DefenseResolvedEvent
+    {
+        public DefenseResult Result;
+        public EnemyAttackType AttackType;
+        public int DamageToPlayer;
+        public int DamageToEnemy; // Deflected damage
+        public bool IsCriticalParry;
+        public int BurstIndex;
+        public int TotalBursts;
+
+        public DefenseResolvedEvent(DefenseResult result, EnemyAttackType attackType, int damageToPlayer, int damageToEnemy, bool isCriticalParry, int burstIndex, int totalBursts)
+        {
+            Result = result;
+            AttackType = attackType;
+            DamageToPlayer = damageToPlayer;
+            DamageToEnemy = damageToEnemy;
+            IsCriticalParry = isCriticalParry;
+            BurstIndex = burstIndex;
+            TotalBursts = totalBursts;
+        }
+    }
+
+    /// <summary>
+    /// Dispatched when the COUNTER / SHARPEN buff state changes.
+    /// </summary>
+    public struct CounterBuffStatusChangedEvent
+    {
+        public bool IsActive;
+        public int BonusDamage;
+        public string Reason;
+
+        public CounterBuffStatusChangedEvent(bool isActive, int bonusDamage, string reason)
+        {
+            IsActive = isActive;
+            BonusDamage = bonusDamage;
+            Reason = reason;
+        }
+    }
+
+    /// <summary>
+    /// Dispatched when an enemy's turn attack sequence begins.
+    /// </summary>
+    public struct EnemyTurnStartedEvent
+    {
+        public int StageNumber;
+        public int TotalShots;
+
+        public EnemyTurnStartedEvent(int stageNumber, int totalShots)
+        {
+            StageNumber = stageNumber;
+            TotalShots = totalShots;
+        }
+    }
+
+    /// <summary>
+    /// Dispatched when an enemy's turn attack sequence concludes.
+    /// </summary>
+    public struct EnemyTurnCompletedEvent
+    {
+        public int StageNumber;
+        public bool PlayerSurviving;
+
+        public EnemyTurnCompletedEvent(int stageNumber, bool playerSurviving)
+        {
+            StageNumber = stageNumber;
+            PlayerSurviving = playerSurviving;
+        }
+    }
+
+    #endregion
 }

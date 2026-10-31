@@ -25,6 +25,10 @@ namespace LuckyDuelist.Core
         {
             EnsureEnemyHealth();
             EnsureAimStabilizer();
+            EnsureFPSCameraController();
+            EnsureKnifeParryController();
+            EnsureBotGunnerAI();
+            EnsureDefenseQTEController();
         }
 
         private static void EnsureExperimentManager()
@@ -77,6 +81,46 @@ namespace LuckyDuelist.Core
                 GameObject go = new GameObject("[AimStabilizerController]");
                 go.AddComponent<AimStabilizerController>();
                 Debug.Log("[AppBootstrapper] Auto-spawned [AimStabilizerController].");
+            }
+        }
+
+        private static void EnsureFPSCameraController()
+        {
+            if (FPSCameraController.Instance == null)
+            {
+                GameObject go = new GameObject("[FPSCameraController]");
+                go.AddComponent<FPSCameraController>();
+                Debug.Log("[AppBootstrapper] Auto-spawned [FPSCameraController].");
+            }
+        }
+
+        private static void EnsureKnifeParryController()
+        {
+            if (KnifeParryController.Instance == null)
+            {
+                GameObject go = new GameObject("[KnifeParryController]");
+                go.AddComponent<KnifeParryController>();
+                Debug.Log("[AppBootstrapper] Auto-spawned [KnifeParryController].");
+            }
+        }
+
+        private static void EnsureBotGunnerAI()
+        {
+            if (BotGunnerAI.Instance == null)
+            {
+                GameObject go = new GameObject("[BotGunnerAI]");
+                go.AddComponent<BotGunnerAI>();
+                Debug.Log("[AppBootstrapper] Auto-spawned [BotGunnerAI].");
+            }
+        }
+
+        private static void EnsureDefenseQTEController()
+        {
+            if (DefenseQTEController.Instance == null)
+            {
+                GameObject go = new GameObject("[DefenseQTEController]");
+                go.AddComponent<DefenseQTEController>();
+                Debug.Log("[AppBootstrapper] Auto-spawned [DefenseQTEController].");
             }
         }
     }
