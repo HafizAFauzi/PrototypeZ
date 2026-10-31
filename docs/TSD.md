@@ -1,15 +1,12 @@
 # Technical Specification Document (TSD)
-**Penelitian**: Komparasi Efektivitas Monetisasi Rewarded Ads dan In-App Purchase (Premium Cosmetics) pada Desain Game Hybrid-Casual Berdasarkan Analisis ARPU  
-**Game**: *Lucky Duelist: Cyber Roulette (1v1 First-Person RNG Slot Battler)*  
-**Target Engine**: Unity (C#)  
-**Perspektif Kamera**: *Full First-Person View (FPS)*  
-**Peneliti**: Hafiz Ahmad Fauzi / 5224600067  
+**Judul Game**: *Lucky Duelist: Cyber Roulette*  
+**Engine & Tools**: Unity 2022.3.48f1 LTS, C#, TextMeshPro, Universal Render Pipeline (URP)  
+**Arsitektur Desain**: *Modular Event-Driven Architecture (EventBus)* & *State Pattern*  
+**Target Platform**: Android (Vulkan / OpenGL ES 3.0) & PC Standalone  
 
 ---
 
-## 1. Arsitektur Perangkat Lunak & Kamera First-Person
-
-Sistem aplikasi dibangun dengan struktur hierarki modular yang menghubungkan kamera sudut pandang orang pertama (*FPS Camera Rig*), kontroler senjata silinder (*Slot Revolver*), modul pertahanan refleks (*Dodge/Parry QTE*), serta mesin telemetri cloud.
+## 1. Arsitektur Sistem Tingkat Tinggi (System Architecture)
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
@@ -21,8 +18,8 @@ Sistem aplikasi dibangun dengan struktur hierarki modular yang menghubungkan kam
 │              │                          │                        │         │
 │  ┌───────────┴──────────────────────────┴────────────────────────┴───────┐ │
 │  │                 Canvas UI (Bottom-Left Minimalist HUD)                │ │
-│  │  - Health Bar & Status                                                │ │
-│  │  - 2 Hold Slots & Spin / Re-spin Ad Button                            │ │
+│  │  - Health Bar & Status (TextMeshPro)                                  │ │
+│  │  - 3-Reel Cylinder Cards & Action Buttons                             │ │
 │  │  - Aim Lock-On Meter & Target Frame Overlay                           │ │
 │  └──────────────────────────────────────▲────────────────────────────────┘ │
 └─────────────────────────────────────────┼──────────────────────────────────┘
@@ -71,7 +68,7 @@ Sistem aplikasi dibangun dengan struktur hierarki modular yang menghubungkan kam
 ---
 
 ### 2.2. `SlotRevolverController` (Silinder Mesin Slot Diegetik)
-* **Tanggung Jawab**: Mengendalikan model 3D/2.5D senjata Revolver di tangan kanan pemain serta memutar animasi 3 gulungan silinder amunisi.
+* **Tanggung Jawab**: Mengendalikan model senjata Revolver di tangan kanan pemain serta memutar animasi 3 gulungan silinder amunisi.
 * **Tabel Probabilitas Simbol**:
   ```csharp
   public enum SlotSymbol {
@@ -85,7 +82,7 @@ Sistem aplikasi dibangun dengan struktur hierarki modular yang menghubungkan kam
 * **Mekanisme Alur Silinder**:
   1. *Spin Animation*: Saat tombol "Putar Silinder" ditekan, silinder revolver berputar dengan efek suara mekanis (*click-clack-clack*).
   2. *Re-spin 1 Reel via Ad*: Jika pemain berada di Group A atau C, pemain dapat memicu *DummyAdPlayer* (10 detik) untuk memutar ulang salah satu reel yang tidak diinginkan.
-  3. *Hold Slots Management*: 2 kotak cadangan di HUD pojok kiri bawah menyimpan simbol untuk turn berikutnya.
+  3. *Direct Action Resolution*: Seluruh 3 reel silinder langsung dieksekusi secara berurutan pada giliran aktif (tanpa sistem hold).
 
 ---
 
@@ -98,80 +95,31 @@ Sistem aplikasi dibangun dengan struktur hierarki modular yang menghubungkan kam
      $$\vec{v}_{\text{player}} = -\text{dragInputVector} \times \text{Sensitivity}$$
   3. **Posisi Reticle Total**:
      $$\vec{P}_{\text{reticle}}(t+\Delta t) = \vec{P}_{\text{reticle}}(t) + (\vec{v}_{\text{drift}} + \vec{v}_{\text{player}}) \times \Delta t$$
-  4. **Akumulasi Lock-On**:
-     * Jika $\|\vec{P}_{\text{reticle}} - \vec{P}_{\text{vital\_circle}}\| \le R_{\text{vital}}$:
-       $$\text{lockOnTimer} += \Delta t$$
-     * Begitu $\text{lockOnTimer} \ge 1.0\text{s}$:
-       Senjata meletus secara otomatis!
-       * Jika musuh memiliki status `[MARK]`: Menghasilkan $2 \times \text{Base Damage}$ (30 DMG) + efek partikel ledakan crit.
-       * Jika kombo 2x atau 3x *Attack*: Indikator langsung mereset dan melanjutkan pengisian tembakan berikutnya secara beruntun (*chaining*).
 
 ---
 
-### 2.4. `DefenseQTEController` (Pistol Musuh: Merah Unparryable vs Kuning Parryable)
-* **Tanggung Jawab**: Mengatur tembakan pistol musuh, membedakan jenis peluru merah vs kuning, memutar audio peringatan, dan memproses tangkisan pisau tangan kiri atau hindar kamera.
-* **Struktur Tipe Serangan**:
+### 2.4. `DefenseQTEController` (Parry Pisau & Hindar Proyektil)
+* **Tanggung Jawab**: Mendeteksi waktu input pertahanan pemain saat proyektil musuh mendekati kamera.
+* **Window Waktu Respon**:
+  * **Tombol Q (Dodge)**: Efektif pada rentang 0,3 detik sebelum proyektil merah mencapai titik temu. Memicu animasi *camera sway* dan flag *Invulnerable* selama 0,4 detik.
+  * **Tombol E (Parry)**: Efektif pada rentang ketat (0,15 detik) sebelum proyektil kuning menabrak. Memicu animasi tebas pisau tangan kiri, efek suara 'CLANG!', dan partikel pendaran percikan api.
+
+---
+
+### 2.5. `ExperimentManager` (Feature-Gating & Persistensi Riset)
+* **Tanggung Jawab**: Mengatur penugasan ID responden deterministik, aktivasi fitur berdasarkan kelompok eksperimen (Group A, B, C), dan penyimpanan lokal via `PlayerPrefs`.
+* **State Matriks Eksperimen**:
   ```csharp
-  public enum EnemyAttackType {
-      UNPARRYABLE_RED,    // Moncong Merah -> Peluru Merah -> WAJIB HINDAR [Q]
-      PARRYABLE_YELLOW    // Moncong Kuning -> Peluru Kuning -> BISA PARRY [E]
+  public enum ExperimentGroup {
+      GroupA_DominantAds,   // Ads On (Respin, Revive, Double Gold), Store Off
+      GroupB_DominantIAP,   // Ads Off, Store On (Initial Wallet Rp 20.000)
+      GroupC_Hybrid         // Ads On, Store On (Initial Wallet Rp 20.000)
   }
   ```
-* **Logika Resolusi Pertahanan**:
-  ```mermaid
-  sequenceDiagram
-      autonumber
-      participant Bot as Musuh (Pistol)
-      participant UI as Visual Moncong & Peluru
-      participant Player as Input (Q / E)
-      participant Cam as FPS Camera / Knife
-      participant Combat as CombatManager
-
-      Bot->>UI: Membidik Kamera Pemain
-      alt Ada Buff COUNTER/SHARPEN
-          UI->>Player: Mainkan Audio Cue Peringatan ("Ching-Ching / Kokangan")
-      end
-
-      alt Serangan Merah (Unparryable)
-          UI->>UI: Moncong Menyala Cahaya Merah & Peluru Merah Meluncur
-          alt Pemain Tekan "Q" (Hindar)
-              Player->>Cam: Kamera Tersentak Miring ke Samping
-              Cam->>Combat: Peluru Lewat di Samping Kamera -> Damage = 0
-          else Pemain Tekan "E" (Salah Aksi) atau Terlambat
-              Combat->>Player: Pisau Gagal Menahan! Kena Damage Penuh (-25 HP)
-          end
-      else Serangan Kuning (Parryable)
-          UI->>UI: Moncong Menyala Kilatan Kuning & Peluru Kuning Meluncur
-          alt Pemain Tekan "E" Presisi (~0.2-0.3s)
-              Player->>Cam: Tangan Kiri Mengayunkan Pisau ke Tengah Layar
-              Cam->>Combat: SFX 'CLANG!' + Percikan Bunga Api Neon
-              Combat->>Bot: Peluru Berbalik! Kena Critical Deflection Slash (35-45 Damage)
-          else Pemain Tekan "Q" (Hindar Aman)
-              Player->>Cam: Kamera Miring Menghindar -> Damage = 0
-          else Terlambat / Tidak Tekan
-              Combat->>Player: Kena Tembakan (-25 HP)
-          end
-      end
-  ```
 
 ---
 
-### 2.5. `MonetizationManager`
-* **Sub-komponen `DummyAdPlayer`**:
-  * Menampilkan kanvas overlay video simulasi fullscreen berdurasi **10 detik**.
-  * Memberikan kompensasi nilai kontribusi iklan terstandarisasi:
-    $$\text{Ad Revenue} = \text{Rp } 250,00$$
-* **Sub-komponen `VirtualIAPStore`**:
-  * Mengelola saldo kuota eksperimen sebesar **Rp 20.000,00**.
-  * Menyimpan status kepemilikan katalog kosmetik:
-    * `SKIN_REVOLVER` (Cyber Damascus Revolver, Golden Revolver).
-    * `SKIN_SPINNER` (Neon Casino Reels, Retro 1984 Spinner).
-    * `SKIN_KNIFE` (Cyber Tantō Knife, Viper Dagger).
-  * Menghubungkan aset visual 3D/sprite pada *FPS Weapon Rig* melalui modul `CosmeticApplier`.
-
----
-
-### 2.6. `TelemetryService` (Perekam & Sinkronisasi Cloud)
+### 2.6. `TelemetryService` & Cloud Logging
 * **Tanggung Jawab**: Mencatat setiap ronde duel, impresi iklan, transaksi kosmetik, serta statistik keterampilan FPS pemain ke dalam dokumen JSON dan mengirimkannya ke REST API Firestore / Supabase.
 * **Metrik Spesifik FPS yang Dicatat**:
   * `aim_shots_fired`: Total tembakan meletus.
@@ -188,7 +136,7 @@ Sistem aplikasi dibangun dengan struktur hierarki modular yang menghubungkan kam
 * **Anchor Setting**: `Bottom-Left` (`Min(0,0)`, `Max(0,0)`).
 * **Komponen HUD**:
   * `HealthBarSlider`: Nilai 0 s/d 100 dengan teks dinamik `"HP: 80/100"`.
-  * `HoldSlotContainer`: Menampung 2 ikon tombol kartu cadangan.
+  * `ReelsContainer`: Menampung 3 kartu reel silinder.
   * `SpinButton`: Tombol utama pemicu putaran silinder revolver.
   * `RespinAdButton`: Tombol bertanda ikon video clapper/ad untuk re-spin 1 reel (hanya tampil pada Group A dan C).
   * `DefensePromptContainer`: Indikator visual tombol `[Q: HINDAR]` dan `[E: PARRY]` yang memandu pemain baru.

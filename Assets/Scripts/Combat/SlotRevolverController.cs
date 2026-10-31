@@ -12,8 +12,8 @@ namespace LuckyDuelist.Combat
     /// Handles:
     /// 1. Probabilistic rolling of 5 symbols (ATTACK 35%, MARK 20%, HEAL 20%, COUNTER 15%, WILD 10%).
     /// 2. 3-Reel diegetic cylinder spinning with staggered stopping & visual/audio hooks.
-    /// 3. 2 Hold Slots inventory system (preserve up to 2 symbols across turns, min 1 symbol executed per turn).
-    /// 4. Single-reel re-spin via Rewarded Ads (max 1x per turn, gated by ExperimentManager).
+    /// 3. Direct 3-reel action execution on turn commit.
+    /// 4. Single-reel re-spin via Rewarded Ads (max 1x per turn, gated by ExperimentManager: Group A & C enabled, Group B disabled).
     /// 5. Wild Joker resolution & turn commitment.
     /// </summary>
     public class SlotRevolverController : MonoBehaviour
@@ -21,7 +21,6 @@ namespace LuckyDuelist.Combat
         public static SlotRevolverController Instance { get; private set; }
 
         public const int REEL_COUNT = 3;
-        public const int MAX_HOLD_SLOTS = 2;
 
         [Header("Symbol Probability Weights (Sum = 100)")]
         [Range(1, 100)] [SerializeField] private int attackWeight = 35;
@@ -43,13 +42,9 @@ namespace LuckyDuelist.Combat
         [SerializeField] private AudioSource audioSource;
         [SerializeField] private AudioClip cylinderSpinSfx;
         [SerializeField] private AudioClip reelStopSfx;
-        [SerializeField] private AudioClip holdToggleSfx;
 
         // Internal State
         private readonly SlotSymbol[] _currentReelSymbols = new SlotSymbol[REEL_COUNT];
-        private readonly bool[] _isReelHeld = new bool[REEL_COUNT];
-        private readonly SlotSymbol?[] _holdSlots = new SlotSymbol?[MAX_HOLD_SLOTS];
-        private readonly int?[] _holdSourceReel = new int?[MAX_HOLD_SLOTS]; // tracks which reel index was put into hold slot
 
         private bool _isSpinning = false;
         private bool _hasSpunThisTurn = false;
@@ -67,23 +62,7 @@ namespace LuckyDuelist.Combat
         public bool HasUsedRespinThisTurn => _hasUsedRespinThisTurn;
         public int TurnNumber => _turnNumber;
 
-        public int HeldCount
-        {
-            get
-            {
-                int count = 0;
-                for (int i = 0; i < MAX_HOLD_SLOTS; i++)
-                {
-                    if (_holdSlots[i].HasValue) count++;
-                }
-                return count;
-            }
-        }
-
-        public bool CanHoldMore => HeldCount < MAX_HOLD_SLOTS;
-
         public SlotSymbol[] CurrentReelSymbols => (SlotSymbol[])_currentReelSymbols.Clone();
-        public SlotSymbol?[] HoldSlots => (SlotSymbol?[])_holdSlots.Clone();
 
         private void Awake()
         {
@@ -236,9 +215,7 @@ namespace LuckyDuelist.Combat
 
             for (int i = 0; i < REEL_COUNT; i++)
             {
-                // Non-held reels are freshly randomized
                 _currentReelSymbols[i] = RollSymbol();
-                _isReelHeld[i] = false;
                 EventBus.Publish(new SlotReelStoppedEvent(i, _currentReelSymbols[i]));
             }
 
@@ -266,7 +243,6 @@ namespace LuckyDuelist.Combat
             for (int i = 0; i < REEL_COUNT; i++)
             {
                 _currentReelSymbols[i] = RollSymbol();
-                _isReelHeld[i] = false;
 
                 if (audioSource != null && reelStopSfx != null)
                 {
@@ -296,7 +272,6 @@ namespace LuckyDuelist.Combat
         /// - Cylinder must have spun and finished spinning.
         /// - Turn must not be committed.
         /// - Max 1 respin per turn.
-        /// - Reel cannot be held in a hold slot.
         /// - Experiment Group must have IsRespinAdEnabled == true (Group A & C: true, Group B: false).
         /// </summary>
         public bool CanRespinReel(int reelIndex)
@@ -304,7 +279,6 @@ namespace LuckyDuelist.Combat
             if (reelIndex < 0 || reelIndex >= REEL_COUNT) return false;
             if (!_hasSpunThisTurn || _isSpinning || _turnCommitted) return false;
             if (_hasUsedRespinThisTurn) return false;
-            if (_isReelHeld[reelIndex]) return false;
 
             if (ExperimentManager.Instance != null && !ExperimentManager.Instance.IsRespinAdEnabled)
             {
@@ -344,174 +318,17 @@ namespace LuckyDuelist.Combat
 
         #endregion
 
-        #region 2 Hold Slots Inventory System
-
-        /// <summary>
-        /// Checks if a specific reel is currently held.
-        /// </summary>
-        public bool IsReelHeld(int reelIndex)
-        {
-            if (reelIndex < 0 || reelIndex >= REEL_COUNT) return false;
-            return _isReelHeld[reelIndex];
-        }
-
-        /// <summary>
-        /// Retrieves the symbol at a hold slot index (0 or 1). Returns null if empty.
-        /// </summary>
-        public SlotSymbol? GetHoldSlot(int holdSlotIndex)
-        {
-            if (holdSlotIndex < 0 || holdSlotIndex >= MAX_HOLD_SLOTS) return null;
-            return _holdSlots[holdSlotIndex];
-        }
-
-        /// <summary>
-        /// Attempts to place a reel's symbol into an available Hold Slot.
-        /// Validates:
-        /// 1. Reel is valid and not already held.
-        /// 2. Hold inventory has an available slot (max 2).
-        /// 3. Rule: Minimal 1 symbol must be executed on active turn!
-        ///    If holding this reel would leave 0 symbols for execution, it is rejected.
-        /// </summary>
-        public bool TryHoldReel(int reelIndex, int targetSlot = -1)
-        {
-            if (reelIndex < 0 || reelIndex >= REEL_COUNT) return false;
-            if (_isReelHeld[reelIndex] || !_hasSpunThisTurn || _isSpinning || _turnCommitted) return false;
-
-            // Check rule: Minimal 1 symbol must be executed
-            int currentExecutableReels = 0;
-            for (int i = 0; i < REEL_COUNT; i++)
-            {
-                if (!_isReelHeld[i]) currentExecutableReels++;
-            }
-
-            // If only 1 reel is currently executable, holding it would leave 0 executable symbols
-            if (currentExecutableReels <= 1)
-            {
-                Debug.LogWarning("[SlotRevolverController] Cannot hold: Minimal 1 symbol must be executed on active turn.");
-                return false;
-            }
-
-            // Find target slot
-            int slotIndex = targetSlot;
-            if (slotIndex < 0 || slotIndex >= MAX_HOLD_SLOTS || _holdSlots[slotIndex].HasValue)
-            {
-                slotIndex = -1;
-                for (int i = 0; i < MAX_HOLD_SLOTS; i++)
-                {
-                    if (!_holdSlots[i].HasValue)
-                    {
-                        slotIndex = i;
-                        break;
-                    }
-                }
-            }
-
-            if (slotIndex == -1)
-            {
-                Debug.LogWarning("[SlotRevolverController] Hold Slots are full (Max 2).");
-                return false;
-            }
-
-            _holdSlots[slotIndex] = _currentReelSymbols[reelIndex];
-            _holdSourceReel[slotIndex] = reelIndex;
-            _isReelHeld[reelIndex] = true;
-
-            if (audioSource != null && holdToggleSfx != null)
-            {
-                audioSource.PlayOneShot(holdToggleSfx);
-            }
-
-            Debug.Log($"[SlotRevolverController] Held Reel {reelIndex} ({_currentReelSymbols[reelIndex]}) in Hold Slot {slotIndex}.");
-            EventBus.Publish(new HoldSlotsChangedEvent(HoldSlots, HeldCount));
-            return true;
-        }
-
-        /// <summary>
-        /// Releases a symbol from a Hold Slot.
-        /// If it was held from a reel during this turn, that reel is unmarked as held.
-        /// </summary>
-        public bool TryReleaseHold(int holdSlotIndex)
-        {
-            if (holdSlotIndex < 0 || holdSlotIndex >= MAX_HOLD_SLOTS) return false;
-            if (!_holdSlots[holdSlotIndex].HasValue) return false;
-
-            SlotSymbol releasedSymbol = _holdSlots[holdSlotIndex].Value;
-            int? sourceReel = _holdSourceReel[holdSlotIndex];
-
-            _holdSlots[holdSlotIndex] = null;
-            _holdSourceReel[holdSlotIndex] = null;
-
-            if (sourceReel.HasValue && sourceReel.Value >= 0 && sourceReel.Value < REEL_COUNT)
-            {
-                _isReelHeld[sourceReel.Value] = false;
-            }
-
-            if (audioSource != null && holdToggleSfx != null)
-            {
-                audioSource.PlayOneShot(holdToggleSfx);
-            }
-
-            Debug.Log($"[SlotRevolverController] Released Hold Slot {holdSlotIndex} ({releasedSymbol}).");
-            EventBus.Publish(new HoldSlotsChangedEvent(HoldSlots, HeldCount));
-            return true;
-        }
-
-        /// <summary>
-        /// Toggles the hold state of a reel (holds if unheld, releases if already held).
-        /// </summary>
-        public bool ToggleHoldReel(int reelIndex)
-        {
-            if (reelIndex < 0 || reelIndex >= REEL_COUNT) return false;
-
-            if (_isReelHeld[reelIndex])
-            {
-                // Find which hold slot contains this reel
-                for (int i = 0; i < MAX_HOLD_SLOTS; i++)
-                {
-                    if (_holdSourceReel[i] == reelIndex)
-                    {
-                        return TryReleaseHold(i);
-                    }
-                }
-                _isReelHeld[reelIndex] = false;
-                return true;
-            }
-            else
-            {
-                return TryHoldReel(reelIndex);
-            }
-        }
-
-        /// <summary>
-        /// Clears all hold slots (e.g. at match reset).
-        /// </summary>
-        public void ClearHoldSlots()
-        {
-            for (int i = 0; i < MAX_HOLD_SLOTS; i++)
-            {
-                _holdSlots[i] = null;
-                _holdSourceReel[i] = null;
-            }
-            for (int i = 0; i < REEL_COUNT; i++)
-            {
-                _isReelHeld[i] = false;
-            }
-            EventBus.Publish(new HoldSlotsChangedEvent(HoldSlots, HeldCount));
-        }
-
-        #endregion
-
         #region Wild Joker Resolution
 
         /// <summary>
-        /// Checks if any non-held reel currently holds a WILD_JOKER.
+        /// Checks if any reel currently holds a WILD_JOKER.
         /// </summary>
         public bool HasPendingWildJoker(out int reelIndex)
         {
             reelIndex = -1;
             for (int i = 0; i < REEL_COUNT; i++)
             {
-                if (!_isReelHeld[i] && _currentReelSymbols[i] == SlotSymbol.WILD_JOKER)
+                if (_currentReelSymbols[i] == SlotSymbol.WILD_JOKER)
                 {
                     reelIndex = i;
                     return true;
@@ -546,22 +363,12 @@ namespace LuckyDuelist.Combat
         /// </summary>
         public bool CanCommitTurn()
         {
-            if (!_hasSpunThisTurn || _isSpinning || _turnCommitted) return false;
-
-            // Must have at least 1 symbol ready to execute
-            int executableCount = 0;
-            for (int i = 0; i < REEL_COUNT; i++)
-            {
-                if (!_isReelHeld[i]) executableCount++;
-            }
-
-            return executableCount >= 1;
+            return _hasSpunThisTurn && !_isSpinning && !_turnCommitted;
         }
 
         /// <summary>
         /// Commits the active turn.
-        /// Collects all non-held symbols into executed list, preserves held symbols in HoldSlots for next turn,
-        /// increments turn count, and publishes TurnCommittedEvent.
+        /// Collects all 3 reel symbols into executed list, increments turn count, and publishes TurnCommittedEvent.
         /// </summary>
         public bool CommitTurn(out List<SlotSymbol> executedSymbols)
         {
@@ -576,40 +383,25 @@ namespace LuckyDuelist.Combat
             // Auto-resolve any remaining Wild Jokers if player didn't manually pick
             for (int i = 0; i < REEL_COUNT; i++)
             {
-                if (!_isReelHeld[i] && _currentReelSymbols[i] == SlotSymbol.WILD_JOKER)
+                if (_currentReelSymbols[i] == SlotSymbol.WILD_JOKER)
                 {
                     ResolveWildJoker(i, SlotSymbol.ATTACK);
                 }
             }
 
-            // Gather all unheld symbols to execute
+            // All 3 reels are directly executed
             for (int i = 0; i < REEL_COUNT; i++)
             {
-                if (!_isReelHeld[i])
-                {
-                    executedSymbols.Add(_currentReelSymbols[i]);
-                }
+                executedSymbols.Add(_currentReelSymbols[i]);
             }
 
             _turnCommitted = true;
             _hasUsedRespinThisTurn = false;
             _hasSpunThisTurn = false;
-
-            // Clear reel held flags for the upcoming turn (symbols stay in _holdSlots!)
-            for (int i = 0; i < REEL_COUNT; i++)
-            {
-                _isReelHeld[i] = false;
-            }
-            for (int i = 0; i < MAX_HOLD_SLOTS; i++)
-            {
-                // Uncouple source reel reference so hold slots carry over cleanly to next turn
-                _holdSourceReel[i] = null;
-            }
-
             _turnNumber++;
 
-            Debug.Log($"[SlotRevolverController] Turn {_turnNumber - 1} committed with {executedSymbols.Count} actions. Held items preserved: {HeldCount}.");
-            EventBus.Publish(new TurnCommittedEvent(_turnNumber - 1, executedSymbols, HoldSlots));
+            Debug.Log($"[SlotRevolverController] Turn {_turnNumber - 1} committed with {executedSymbols.Count} actions.");
+            EventBus.Publish(new TurnCommittedEvent(_turnNumber - 1, executedSymbols));
 
             return true;
         }
@@ -624,12 +416,10 @@ namespace LuckyDuelist.Combat
             _hasSpunThisTurn = false;
             _turnCommitted = false;
             _hasUsedRespinThisTurn = false;
-            ClearHoldSlots();
 
             for (int i = 0; i < REEL_COUNT; i++)
             {
                 _currentReelSymbols[i] = SlotSymbol.ATTACK;
-                _isReelHeld[i] = false;
             }
         }
 

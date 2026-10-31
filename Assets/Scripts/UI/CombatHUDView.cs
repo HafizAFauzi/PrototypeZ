@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using LuckyDuelist.Combat;
 using LuckyDuelist.Core;
 using LuckyDuelist.Events;
@@ -9,17 +10,16 @@ using LuckyDuelist.Experiment;
 namespace LuckyDuelist.UI
 {
     /// <summary>
-    /// Manages the First-Person Bottom-Left Minimalist HUD Canvas as specified in GDD Section 5 and TSD Section 3.
+    /// Manages the First-Person Bottom-Left Minimalist HUD Canvas.
     /// Includes:
-    /// 1. Health Bar (Slider + Dynamic text "HP: 100/100" with low HP color shifting).
-    /// 2. 2 Hold Slots (Hold Inventory boxes with Hold/Release toggles).
-    /// 3. 3-Reel Cylinder Display (Cards showing symbol icon, name, neon color, Hold & Re-spin triggers).
-    /// 4. Main Action Button ("PUTAR SILINDER" / "EKSEKUSI GILIRAN").
-    /// 5. Re-spin via Rewarded Ad Button (Gated by ExperimentGroup: Group A & C visible, Group B hidden).
-    /// 6. Defense Prompt Badges ([Q: HINDAR] | [E: PARRY PISAU]).
-    /// 7. Wild Joker Selection Modal.
+    /// 1. Health Bar (Slider + Dynamic TMP_Text "HP: 100/100" with low HP color shifting).
+    /// 2. 3-Reel Cylinder Display (Cards showing symbol icon, name, neon color & Re-spin triggers).
+    /// 3. Main Action Button ("PUTAR SILINDER" / "EKSEKUSI GILIRAN").
+    /// 4. Re-spin via Rewarded Ad Button (Gated by ExperimentGroup: Group A & C visible, Group B hidden).
+    /// 5. Defense Prompt Badges ([Q: HINDAR] | [E: PARRY PISAU]).
+    /// 6. Wild Joker Selection Modal.
     ///
-    /// Can be pre-wired in the Inspector OR procedurally builds a complete cyberpunk HUD if references are null.
+    /// Supports TextMeshPro (TMP_Text) for crisp UI and drag-and-drop from the Inspector.
     /// </summary>
     public class CombatHUDView : MonoBehaviour
     {
@@ -29,29 +29,24 @@ namespace LuckyDuelist.UI
 
         [Header("Health Bar Elements")]
         [SerializeField] private Slider healthSlider;
-        [SerializeField] private Text healthText;
+        [SerializeField] private TMP_Text healthText;
         [SerializeField] private Image healthFillImage;
-
-        [Header("2 Hold Slots")]
-        [SerializeField] private Button[] holdSlotButtons = new Button[2];
-        [SerializeField] private Text[] holdSlotTexts = new Text[2];
-        [SerializeField] private Image[] holdSlotBorders = new Image[2];
 
         [Header("3 Cylinder Reels")]
         [SerializeField] private Button[] reelCards = new Button[3];
-        [SerializeField] private Text[] reelSymbolTexts = new Text[3];
+        [SerializeField] private TMP_Text[] reelSymbolTexts = new TMP_Text[3];
         [SerializeField] private Image[] reelCardBorders = new Image[3];
         [SerializeField] private Button[] reelRespinButtons = new Button[3];
 
         [Header("Primary Action Buttons")]
         [SerializeField] private Button spinOrCommitButton;
-        [SerializeField] private Text spinOrCommitText;
+        [SerializeField] private TMP_Text spinOrCommitText;
         [SerializeField] private Button respinAdButton;
-        [SerializeField] private Text respinAdText;
+        [SerializeField] private TMP_Text respinAdText;
 
         [Header("Defense Prompt")]
         [SerializeField] private GameObject defensePromptRoot;
-        [SerializeField] private Text defensePromptText;
+        [SerializeField] private TMP_Text defensePromptText;
 
         [Header("Wild Joker Modal")]
         [SerializeField] private GameObject wildJokerModal;
@@ -61,7 +56,8 @@ namespace LuckyDuelist.UI
         [SerializeField] private Button wildCounterBtn;
 
         private int _pendingWildReelIndex = -1;
-                [Header("Procedural Fallback Settings")]
+
+        [Header("Procedural Fallback Settings")]
         [Tooltip("If true, automatically creates UI GameObjects at runtime. Set to FALSE if you design your own UI in the Hierarchy.")]
         [SerializeField] private bool useProceduralUIFallback = false;
 
@@ -79,7 +75,6 @@ namespace LuckyDuelist.UI
             EventBus.Subscribe<SlotReelStoppedEvent>(OnSlotReelStopped);
             EventBus.Subscribe<SlotSpinCompletedEvent>(OnSlotSpinCompleted);
             EventBus.Subscribe<SlotRespinTriggeredEvent>(OnSlotRespinTriggered);
-            EventBus.Subscribe<HoldSlotsChangedEvent>(OnHoldSlotsChanged);
             EventBus.Subscribe<TurnCommittedEvent>(OnTurnCommitted);
             EventBus.Subscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
             EventBus.Subscribe<WildJokerResolvedEvent>(OnWildJokerResolved);
@@ -92,7 +87,6 @@ namespace LuckyDuelist.UI
             EventBus.Unsubscribe<SlotReelStoppedEvent>(OnSlotReelStopped);
             EventBus.Unsubscribe<SlotSpinCompletedEvent>(OnSlotSpinCompleted);
             EventBus.Unsubscribe<SlotRespinTriggeredEvent>(OnSlotRespinTriggered);
-            EventBus.Unsubscribe<HoldSlotsChangedEvent>(OnHoldSlotsChanged);
             EventBus.Unsubscribe<TurnCommittedEvent>(OnTurnCommitted);
             EventBus.Unsubscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
             EventBus.Unsubscribe<WildJokerResolvedEvent>(OnWildJokerResolved);
@@ -119,8 +113,14 @@ namespace LuckyDuelist.UI
 
             for (int i = 0; i < 3; i++)
             {
-                if (reelSymbolTexts[i] != null) reelSymbolTexts[i].text = "🎰\n...";
-                if (reelRespinButtons[i] != null) reelRespinButtons[i].gameObject.SetActive(false);
+                if (reelSymbolTexts != null && i < reelSymbolTexts.Length && reelSymbolTexts[i] != null)
+                {
+                    reelSymbolTexts[i].text = "🎰\n...";
+                }
+                if (reelRespinButtons != null && i < reelRespinButtons.Length && reelRespinButtons[i] != null)
+                {
+                    reelRespinButtons[i].gameObject.SetActive(false);
+                }
             }
         }
 
@@ -133,13 +133,13 @@ namespace LuckyDuelist.UI
                 string name = SlotSymbolMetadata.GetName(evt.Symbol);
                 Color color = SlotSymbolMetadata.GetColor(evt.Symbol);
 
-                if (reelSymbolTexts[index] != null)
+                if (reelSymbolTexts != null && index < reelSymbolTexts.Length && reelSymbolTexts[index] != null)
                 {
                     reelSymbolTexts[index].text = $"{icon}\n{name}";
                     reelSymbolTexts[index].color = color;
                 }
 
-                if (reelCardBorders[index] != null)
+                if (reelCardBorders != null && index < reelCardBorders.Length && reelCardBorders[index] != null)
                 {
                     reelCardBorders[index].color = color;
                 }
@@ -156,13 +156,6 @@ namespace LuckyDuelist.UI
         {
             RefreshHUD();
             CheckAndOpenWildJokerModal();
-        }
-
-        private void OnHoldSlotsChanged(HoldSlotsChangedEvent evt)
-        {
-            UpdateHoldSlotsUI(evt.HoldSlots);
-            UpdateReelCardsHoldState();
-            UpdateActionButtonsState();
         }
 
         private void OnTurnCommitted(TurnCommittedEvent evt)
@@ -218,67 +211,6 @@ namespace LuckyDuelist.UI
             }
         }
 
-        private void UpdateHoldSlotsUI(SlotSymbol?[] holdSlots)
-        {
-            for (int i = 0; i < 2; i++)
-            {
-                SlotSymbol? symbol = (holdSlots != null && i < holdSlots.Length) ? holdSlots[i] : null;
-
-                if (symbol.HasValue)
-                {
-                    string icon = SlotSymbolMetadata.GetIcon(symbol.Value);
-                    string name = SlotSymbolMetadata.GetName(symbol.Value);
-                    Color col = SlotSymbolMetadata.GetColor(symbol.Value);
-
-                    if (holdSlotTexts[i] != null)
-                    {
-                        holdSlotTexts[i].text = $"HOLD {i + 1}\n{icon} {name}";
-                        holdSlotTexts[i].color = col;
-                    }
-                    if (holdSlotBorders[i] != null)
-                    {
-                        holdSlotBorders[i].color = col;
-                    }
-                }
-                else
-                {
-                    if (holdSlotTexts[i] != null)
-                    {
-                        holdSlotTexts[i].text = $"HOLD {i + 1}\n[ KOSONG ]";
-                        holdSlotTexts[i].color = new Color(0.5f, 0.5f, 0.5f, 0.7f);
-                    }
-                    if (holdSlotBorders[i] != null)
-                    {
-                        holdSlotBorders[i].color = new Color(0.3f, 0.3f, 0.3f, 0.5f);
-                    }
-                }
-            }
-        }
-
-        private void UpdateReelCardsHoldState()
-        {
-            var controller = SlotRevolverController.Instance;
-            if (controller == null) return;
-
-            for (int i = 0; i < 3; i++)
-            {
-                bool isHeld = controller.IsReelHeld(i);
-                if (reelCardBorders[i] != null)
-                {
-                    if (isHeld)
-                    {
-                        // Gold/yellow dashed outline when held
-                        reelCardBorders[i].color = new Color(1f, 0.85f, 0.2f, 1f);
-                    }
-                    else
-                    {
-                        SlotSymbol symbol = controller.CurrentReelSymbols[i];
-                        reelCardBorders[i].color = SlotSymbolMetadata.GetColor(symbol);
-                    }
-                }
-            }
-        }
-
         private void UpdateActionButtonsState()
         {
             var controller = SlotRevolverController.Instance;
@@ -299,7 +231,7 @@ namespace LuckyDuelist.UI
             }
             else
             {
-                // Has spun -> Ready to commit turn actions
+                // Has spun -> Ready to commit all 3 reels for turn actions
                 bool canCommit = controller.CanCommitTurn();
                 if (spinOrCommitButton != null) spinOrCommitButton.interactable = canCommit;
                 if (spinOrCommitText != null) spinOrCommitText.text = "EKSEKUSI GILIRAN";
@@ -330,7 +262,7 @@ namespace LuckyDuelist.UI
             // Reel individual respin buttons
             for (int i = 0; i < 3; i++)
             {
-                if (reelRespinButtons[i] != null)
+                if (reelRespinButtons != null && i < reelRespinButtons.Length && reelRespinButtons[i] != null)
                 {
                     bool canRespinThis = isAdsEnabled && controller.CanRespinReel(i);
                     reelRespinButtons[i].gameObject.SetActive(canRespinThis);
@@ -350,14 +282,17 @@ namespace LuckyDuelist.UI
                     string name = SlotSymbolMetadata.GetName(sym);
                     Color col = SlotSymbolMetadata.GetColor(sym);
 
-                    if (reelSymbolTexts[i] != null)
+                    if (reelSymbolTexts != null && i < reelSymbolTexts.Length && reelSymbolTexts[i] != null)
                     {
                         reelSymbolTexts[i].text = $"{icon}\n{name}";
                         reelSymbolTexts[i].color = col;
                     }
+
+                    if (reelCardBorders != null && i < reelCardBorders.Length && reelCardBorders[i] != null)
+                    {
+                        reelCardBorders[i].color = col;
+                    }
                 }
-                UpdateHoldSlotsUI(controller.HoldSlots);
-                UpdateReelCardsHoldState();
             }
 
             var playerHp = PlayerHealth.Instance;
@@ -385,7 +320,7 @@ namespace LuckyDuelist.UI
 
             for (int i = 0; i < 3; i++)
             {
-                if (reelRespinButtons[i] != null)
+                if (reelRespinButtons != null && i < reelRespinButtons.Length && reelRespinButtons[i] != null)
                 {
                     reelRespinButtons[i].gameObject.SetActive(allowRespinAd);
                 }
@@ -408,7 +343,7 @@ namespace LuckyDuelist.UI
             }
             else
             {
-                // Commit turn
+                // Commit turn directly with all 3 reels
                 if (controller.CommitTurn(out List<SlotSymbol> actions))
                 {
                     Debug.Log($"[CombatHUDView] Turn committed with {actions.Count} actions!");
@@ -418,20 +353,7 @@ namespace LuckyDuelist.UI
 
         public void OnReelCardClicked(int reelIndex)
         {
-            var controller = SlotRevolverController.Instance;
-            if (controller == null || !controller.HasSpunThisTurn || controller.IsSpinning) return;
-
-            // Toggle Hold for this reel
-            controller.ToggleHoldReel(reelIndex);
-        }
-
-        public void OnHoldSlotClicked(int holdSlotIndex)
-        {
-            var controller = SlotRevolverController.Instance;
-            if (controller == null) return;
-
-            // Clicking an occupied hold slot releases it back
-            controller.TryReleaseHold(holdSlotIndex);
+            // Direct 3-reel model: reel card clicking reserved for future inspection or respin
         }
 
         public void OnRespinButtonClicked(int reelIndex)
@@ -441,7 +363,6 @@ namespace LuckyDuelist.UI
 
             if (controller.CanRespinReel(reelIndex))
             {
-                // In production this will invoke DummyAdPlayer. In prototype it triggers reel respin!
                 controller.RespinReel(reelIndex, isAdWatched: true);
             }
         }
@@ -451,7 +372,7 @@ namespace LuckyDuelist.UI
             var controller = SlotRevolverController.Instance;
             if (controller == null) return;
 
-            // Find first unheld non-wild reel to re-spin
+            // Find first available reel to re-spin
             for (int i = 0; i < 3; i++)
             {
                 if (controller.CanRespinReel(i))
@@ -504,7 +425,6 @@ namespace LuckyDuelist.UI
                 _isInitialized = true;
                 return;
             }
-            if (_isInitialized) return;
 
             if (hudCanvas == null)
             {
@@ -534,7 +454,7 @@ namespace LuckyDuelist.UI
                 bottomLeftHudRoot.anchorMax = new Vector2(0f, 0f);
                 bottomLeftHudRoot.pivot = new Vector2(0f, 0f);
                 bottomLeftHudRoot.anchoredPosition = new Vector2(30f, 30f);
-                bottomLeftHudRoot.sizeDelta = new Vector2(460f, 360f);
+                bottomLeftHudRoot.sizeDelta = new Vector2(460f, 320f);
 
                 // Background panel
                 var bgImage = hudRootGo.AddComponent<Image>();
@@ -551,31 +471,8 @@ namespace LuckyDuelist.UI
             _isInitialized = true;
         }
 
-        private static Font GetDefaultFont()
-        {
-            Font font = null;
-            try
-            {
-                font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            }
-            catch { }
-
-            if (font == null)
-            {
-                try
-                {
-                    font = Font.CreateDynamicFontFromOSFont("Arial", 14);
-                }
-                catch { }
-            }
-
-            return font;
-        }
-
         private void BuildProceduralHUDChildren(RectTransform root)
         {
-            Font defaultFont = GetDefaultFont();
-
             // 1. Health Bar (Top)
             var hpGo = new GameObject("HealthBar_Slider");
             var hpRect = hpGo.AddComponent<RectTransform>();
@@ -614,62 +511,20 @@ namespace LuckyDuelist.UI
             hpTextRect.anchorMax = Vector2.one;
             hpTextRect.offsetMin = Vector2.zero;
             hpTextRect.offsetMax = Vector2.zero;
-            healthText = hpTextGo.AddComponent<Text>();
-            healthText.font = defaultFont;
-            healthText.fontSize = 18;
-            healthText.fontStyle = FontStyle.Bold;
-            healthText.alignment = TextAnchor.MiddleCenter;
-            healthText.color = Color.white;
-            healthText.text = "HP: 100 / 100";
+            var hpTmp = hpTextGo.AddComponent<TextMeshProUGUI>();
+            hpTmp.fontSize = 18;
+            hpTmp.fontStyle = FontStyles.Bold;
+            hpTmp.alignment = TextAlignmentOptions.Center;
+            hpTmp.color = Color.white;
+            hpTmp.text = "HP: 100 / 100";
+            healthText = hpTmp;
 
-            // 2. 2 Hold Slots Container
-            var holdContainerGo = new GameObject("HoldSlots_Container");
-            var holdContainerRect = holdContainerGo.AddComponent<RectTransform>();
-            holdContainerRect.SetParent(root, false);
-            holdContainerRect.anchorMin = new Vector2(0.05f, 0.64f);
-            holdContainerRect.anchorMax = new Vector2(0.95f, 0.82f);
-            holdContainerRect.offsetMin = Vector2.zero;
-            holdContainerRect.offsetMax = Vector2.zero;
-
-            for (int i = 0; i < 2; i++)
-            {
-                int slotIdx = i;
-                var slotGo = new GameObject($"HoldSlot_{i}");
-                var slotRect = slotGo.AddComponent<RectTransform>();
-                slotRect.SetParent(holdContainerRect, false);
-                slotRect.anchorMin = new Vector2(i * 0.51f, 0f);
-                slotRect.anchorMax = new Vector2(i * 0.51f + 0.48f, 1f);
-                slotRect.offsetMin = Vector2.zero;
-                slotRect.offsetMax = Vector2.zero;
-
-                holdSlotBorders[i] = slotGo.AddComponent<Image>();
-                holdSlotBorders[i].color = new Color(0.3f, 0.3f, 0.35f, 0.7f);
-
-                holdSlotButtons[i] = slotGo.AddComponent<Button>();
-                holdSlotButtons[i].onClick.AddListener(() => OnHoldSlotClicked(slotIdx));
-
-                var txtGo = new GameObject("Text");
-                var txtRect = txtGo.AddComponent<RectTransform>();
-                txtRect.SetParent(slotRect, false);
-                txtRect.anchorMin = Vector2.zero;
-                txtRect.anchorMax = Vector2.one;
-                txtRect.offsetMin = Vector2.zero;
-                txtRect.offsetMax = Vector2.zero;
-
-                holdSlotTexts[i] = txtGo.AddComponent<Text>();
-                holdSlotTexts[i].font = defaultFont;
-                holdSlotTexts[i].fontSize = 14;
-                holdSlotTexts[i].alignment = TextAnchor.MiddleCenter;
-                holdSlotTexts[i].color = Color.white;
-                holdSlotTexts[i].text = $"HOLD {i + 1}\n[ KOSONG ]";
-            }
-
-            // 3. 3 Cylinder Reel Displays (Reels 0, 1, 2)
+            // 2. 3 Cylinder Reel Displays (Reels 0, 1, 2)
             var reelsContainerGo = new GameObject("Reels_Container");
             var reelsRect = reelsContainerGo.AddComponent<RectTransform>();
             reelsRect.SetParent(root, false);
-            reelsRect.anchorMin = new Vector2(0.05f, 0.32f);
-            reelsRect.anchorMax = new Vector2(0.95f, 0.60f);
+            reelsRect.anchorMin = new Vector2(0.05f, 0.42f);
+            reelsRect.anchorMax = new Vector2(0.95f, 0.82f);
             reelsRect.offsetMin = Vector2.zero;
             reelsRect.offsetMax = Vector2.zero;
 
@@ -698,13 +553,13 @@ namespace LuckyDuelist.UI
                 txtRect.offsetMin = Vector2.zero;
                 txtRect.offsetMax = Vector2.zero;
 
-                reelSymbolTexts[i] = txtGo.AddComponent<Text>();
-                reelSymbolTexts[i].font = defaultFont;
-                reelSymbolTexts[i].fontSize = 16;
-                reelSymbolTexts[i].fontStyle = FontStyle.Bold;
-                reelSymbolTexts[i].alignment = TextAnchor.MiddleCenter;
-                reelSymbolTexts[i].text = "⚔️\nATTACK";
-                reelSymbolTexts[i].color = SlotSymbolMetadata.GetColor(SlotSymbol.ATTACK);
+                var rTmp = txtGo.AddComponent<TextMeshProUGUI>();
+                rTmp.fontSize = 16;
+                rTmp.fontStyle = FontStyles.Bold;
+                rTmp.alignment = TextAlignmentOptions.Center;
+                rTmp.text = "\u2694\nATTACK";
+                rTmp.color = SlotSymbolMetadata.GetColor(SlotSymbol.ATTACK);
+                reelSymbolTexts[i] = rTmp;
 
                 // Small respin button overlay
                 var respinBtnGo = new GameObject("RespinBtn");
@@ -720,24 +575,23 @@ namespace LuckyDuelist.UI
                 reelRespinButtons[i] = respinBtnGo.AddComponent<Button>();
                 reelRespinButtons[i].onClick.AddListener(() => OnRespinButtonClicked(rIdx));
 
-                var rTxt = new GameObject("Text").AddComponent<Text>();
-                rTxt.transform.SetParent(respinRect, false);
-                rTxt.rectTransform.anchorMin = Vector2.zero;
-                rTxt.rectTransform.anchorMax = Vector2.one;
-                rTxt.font = defaultFont;
-                rTxt.fontSize = 11;
-                rTxt.alignment = TextAnchor.MiddleCenter;
-                rTxt.color = Color.black;
-                rTxt.text = "🎬 Re-spin";
+                var rSubTmp = new GameObject("Text").AddComponent<TextMeshProUGUI>();
+                rSubTmp.transform.SetParent(respinRect, false);
+                rSubTmp.rectTransform.anchorMin = Vector2.zero;
+                rSubTmp.rectTransform.anchorMax = Vector2.one;
+                rSubTmp.fontSize = 11;
+                rSubTmp.alignment = TextAlignmentOptions.Center;
+                rSubTmp.color = Color.black;
+                rSubTmp.text = "🎬 Re-spin";
                 reelRespinButtons[i].gameObject.SetActive(false);
             }
 
-            // 4. Primary Spin / Commit Button
+            // 3. Primary Spin / Commit Button
             var spinBtnGo = new GameObject("Spin_Commit_Button");
             var spinRect = spinBtnGo.AddComponent<RectTransform>();
             spinRect.SetParent(root, false);
-            spinRect.anchorMin = new Vector2(0.05f, 0.15f);
-            spinRect.anchorMax = new Vector2(0.55f, 0.29f);
+            spinRect.anchorMin = new Vector2(0.05f, 0.18f);
+            spinRect.anchorMax = new Vector2(0.55f, 0.36f);
             spinRect.offsetMin = Vector2.zero;
             spinRect.offsetMax = Vector2.zero;
 
@@ -751,20 +605,20 @@ namespace LuckyDuelist.UI
             spinTxtRect.SetParent(spinRect, false);
             spinTxtRect.anchorMin = Vector2.zero;
             spinTxtRect.anchorMax = Vector2.one;
-            spinOrCommitText = spinTxtGo.AddComponent<Text>();
-            spinOrCommitText.font = defaultFont;
-            spinOrCommitText.fontSize = 15;
-            spinOrCommitText.fontStyle = FontStyle.Bold;
-            spinOrCommitText.alignment = TextAnchor.MiddleCenter;
-            spinOrCommitText.color = Color.white;
-            spinOrCommitText.text = "PUTAR SILINDER";
+            var spinTmp = spinTxtGo.AddComponent<TextMeshProUGUI>();
+            spinTmp.fontSize = 15;
+            spinTmp.fontStyle = FontStyles.Bold;
+            spinTmp.alignment = TextAlignmentOptions.Center;
+            spinTmp.color = Color.white;
+            spinTmp.text = "PUTAR SILINDER";
+            spinOrCommitText = spinTmp;
 
-            // 5. Re-spin Ad Button (Group A & C only)
+            // 4. Re-spin Ad Button (Group A & C only)
             var adBtnGo = new GameObject("Respin_Ad_Button");
             var adRect = adBtnGo.AddComponent<RectTransform>();
             adRect.SetParent(root, false);
-            adRect.anchorMin = new Vector2(0.58f, 0.15f);
-            adRect.anchorMax = new Vector2(0.95f, 0.29f);
+            adRect.anchorMin = new Vector2(0.58f, 0.18f);
+            adRect.anchorMax = new Vector2(0.95f, 0.36f);
             adRect.offsetMin = Vector2.zero;
             adRect.offsetMax = Vector2.zero;
 
@@ -778,20 +632,20 @@ namespace LuckyDuelist.UI
             adTxtRect.SetParent(adRect, false);
             adTxtRect.anchorMin = Vector2.zero;
             adTxtRect.anchorMax = Vector2.one;
-            respinAdText = adTxtGo.AddComponent<Text>();
-            respinAdText.font = defaultFont;
-            respinAdText.fontSize = 12;
-            respinAdText.fontStyle = FontStyle.Bold;
-            respinAdText.alignment = TextAnchor.MiddleCenter;
-            respinAdText.color = Color.black;
-            respinAdText.text = "[ 🎬 RE-SPIN ]";
+            var adTmp = adTxtGo.AddComponent<TextMeshProUGUI>();
+            adTmp.fontSize = 12;
+            adTmp.fontStyle = FontStyles.Bold;
+            adTmp.alignment = TextAlignmentOptions.Center;
+            adTmp.color = Color.black;
+            adTmp.text = "[ 🎬 RE-SPIN ]";
+            respinAdText = adTmp;
 
-            // 6. Defense Prompt Bar (Bottom)
+            // 5. Defense Prompt Bar (Bottom)
             defensePromptRoot = new GameObject("Defense_Prompt_Container");
             var defRect = defensePromptRoot.AddComponent<RectTransform>();
             defRect.SetParent(root, false);
-            defRect.anchorMin = new Vector2(0.05f, 0.02f);
-            defRect.anchorMax = new Vector2(0.95f, 0.12f);
+            defRect.anchorMin = new Vector2(0.05f, 0.03f);
+            defRect.anchorMax = new Vector2(0.95f, 0.14f);
             defRect.offsetMin = Vector2.zero;
             defRect.offsetMax = Vector2.zero;
 
@@ -803,18 +657,18 @@ namespace LuckyDuelist.UI
             defTxtRect.SetParent(defRect, false);
             defTxtRect.anchorMin = Vector2.zero;
             defTxtRect.anchorMax = Vector2.one;
-            defensePromptText = defTxtGo.AddComponent<Text>();
-            defensePromptText.font = defaultFont;
-            defensePromptText.fontSize = 12;
-            defensePromptText.alignment = TextAnchor.MiddleCenter;
-            defensePromptText.color = new Color(0f, 0.85f, 1f);
-            defensePromptText.text = "[Q] HINDAR (Merah)   |   [E] PARRY (Kuning)";
+            var defTmp = defTxtGo.AddComponent<TextMeshProUGUI>();
+            defTmp.fontSize = 12;
+            defTmp.alignment = TextAlignmentOptions.Center;
+            defTmp.color = new Color(0f, 0.85f, 1f);
+            defTmp.text = "[Q] HINDAR (Merah)   |   [E] PARRY (Kuning)";
+            defensePromptText = defTmp;
 
-            // 7. Wild Joker Selection Modal
-            BuildWildJokerModal(root, defaultFont);
+            // 6. Wild Joker Selection Modal
+            BuildWildJokerModal(root);
         }
 
-        private void BuildWildJokerModal(RectTransform parent, Font font)
+        private void BuildWildJokerModal(RectTransform parent)
         {
             wildJokerModal = new GameObject("WildJoker_Modal");
             var modalRect = wildJokerModal.AddComponent<RectTransform>();
@@ -835,13 +689,12 @@ namespace LuckyDuelist.UI
             titleRect.SetParent(modalRect, false);
             titleRect.anchorMin = new Vector2(0.05f, 0.75f);
             titleRect.anchorMax = new Vector2(0.95f, 0.95f);
-            var titleTxt = titleGo.AddComponent<Text>();
-            titleTxt.font = font;
-            titleTxt.fontSize = 15;
-            titleTxt.fontStyle = FontStyle.Bold;
-            titleTxt.alignment = TextAnchor.MiddleCenter;
-            titleTxt.color = new Color(0.95f, 0.35f, 1f);
-            titleTxt.text = "⭐ WILD JOKER AKTIF ⭐\nPilih Simbol:";
+            var titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
+            titleTmp.fontSize = 15;
+            titleTmp.fontStyle = FontStyles.Bold;
+            titleTmp.alignment = TextAlignmentOptions.Center;
+            titleTmp.color = new Color(0.95f, 0.35f, 1f);
+            titleTmp.text = "⭐ WILD JOKER AKTIF ⭐\nPilih Simbol:";
 
             // 4 Option Buttons (Attack, Mark, Heal, Counter)
             SlotSymbol[] choices = new[] { SlotSymbol.ATTACK, SlotSymbol.MARK, SlotSymbol.HEAL, SlotSymbol.COUNTER_SHARPEN };
@@ -861,16 +714,15 @@ namespace LuckyDuelist.UI
                 var btn = btnGo.AddComponent<Button>();
                 btn.onClick.AddListener(() => SelectWildChoice(sym));
 
-                var bTxt = new GameObject("Text").AddComponent<Text>();
-                bTxt.transform.SetParent(btnRect, false);
-                bTxt.rectTransform.anchorMin = Vector2.zero;
-                bTxt.rectTransform.anchorMax = Vector2.one;
-                bTxt.font = font;
-                bTxt.fontSize = 13;
-                bTxt.fontStyle = FontStyle.Bold;
-                bTxt.alignment = TextAnchor.MiddleCenter;
-                bTxt.color = Color.black;
-                bTxt.text = $"{SlotSymbolMetadata.GetIcon(sym)} {SlotSymbolMetadata.GetName(sym)}";
+                var bTmp = new GameObject("Text").AddComponent<TextMeshProUGUI>();
+                bTmp.transform.SetParent(btnRect, false);
+                bTmp.rectTransform.anchorMin = Vector2.zero;
+                bTmp.rectTransform.anchorMax = Vector2.one;
+                bTmp.fontSize = 13;
+                bTmp.fontStyle = FontStyles.Bold;
+                bTmp.alignment = TextAlignmentOptions.Center;
+                bTmp.color = Color.black;
+                bTmp.text = $"{SlotSymbolMetadata.GetIcon(sym)} {SlotSymbolMetadata.GetName(sym)}";
 
                 if (i == 0) wildAttackBtn = btn;
                 else if (i == 1) wildMarkBtn = btn;

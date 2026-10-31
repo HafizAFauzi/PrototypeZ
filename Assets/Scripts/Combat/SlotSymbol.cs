@@ -47,18 +47,19 @@ namespace LuckyDuelist.Combat
 
         public static string GetIcon(SlotSymbol symbol)
         {
+            // Note: variation selector \uFE0F is stripped to prevent TextMeshPro glyph warnings in SDF fonts
             switch (symbol)
             {
                 case SlotSymbol.ATTACK:
-                    return "⚔️";
+                    return "\u2694"; // ⚔
                 case SlotSymbol.MARK:
-                    return "🎯";
+                    return "\uD83C\uDFAF"; // 🎯
                 case SlotSymbol.HEAL:
-                    return "💉";
+                    return "\uD83D\uDC89"; // 💉
                 case SlotSymbol.COUNTER_SHARPEN:
-                    return "🗡️";
+                    return "\uD83D\uDDE1"; // 🗡
                 case SlotSymbol.WILD_JOKER:
-                    return "⭐";
+                    return "\u2B50"; // ⭐
                 default:
                     return "?";
             }

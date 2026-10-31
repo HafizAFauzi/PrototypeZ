@@ -66,34 +66,17 @@ namespace LuckyDuelist.Events
     }
 
     /// <summary>
-    /// Dispatched whenever hold slots change (a symbol was held, unheld, or cleared).
-    /// </summary>
-    public struct HoldSlotsChangedEvent
-    {
-        public SlotSymbol?[] HoldSlots;
-        public int HeldCount;
-
-        public HoldSlotsChangedEvent(SlotSymbol?[] holdSlots, int heldCount)
-        {
-            HoldSlots = holdSlots;
-            HeldCount = heldCount;
-        }
-    }
-
-    /// <summary>
-    /// Dispatched when player commits their turn (locking in unheld symbols for combat actions).
+    /// Dispatched when player commits their turn (locking in all 3 reels for combat actions).
     /// </summary>
     public struct TurnCommittedEvent
     {
         public int TurnNumber;
         public List<SlotSymbol> ExecutedSymbols;
-        public SlotSymbol?[] PreservedHoldSlots;
 
-        public TurnCommittedEvent(int turnNumber, List<SlotSymbol> executedSymbols, SlotSymbol?[] preservedHoldSlots)
+        public TurnCommittedEvent(int turnNumber, List<SlotSymbol> executedSymbols)
         {
             TurnNumber = turnNumber;
             ExecutedSymbols = executedSymbols;
-            PreservedHoldSlots = preservedHoldSlots;
         }
     }
 
