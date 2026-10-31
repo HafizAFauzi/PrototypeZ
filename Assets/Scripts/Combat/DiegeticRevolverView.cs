@@ -50,6 +50,7 @@ namespace LuckyDuelist.Combat
             EventBus.Subscribe<SlotReelStoppedEvent>(OnReelStopped);
             EventBus.Subscribe<SlotSpinCompletedEvent>(OnSpinCompleted);
             EventBus.Subscribe<TurnCommittedEvent>(OnTurnCommitted);
+            EventBus.Subscribe<AimShotFiredEvent>(OnAimShotFired);
         }
 
         private void OnDestroy()
@@ -58,6 +59,7 @@ namespace LuckyDuelist.Combat
             EventBus.Unsubscribe<SlotReelStoppedEvent>(OnReelStopped);
             EventBus.Unsubscribe<SlotSpinCompletedEvent>(OnSpinCompleted);
             EventBus.Unsubscribe<TurnCommittedEvent>(OnTurnCommitted);
+            EventBus.Unsubscribe<AimShotFiredEvent>(OnAimShotFired);
         }
 
         private void Update()
@@ -149,6 +151,12 @@ namespace LuckyDuelist.Combat
             {
                 TriggerRecoilKick();
             }
+        }
+
+        private void OnAimShotFired(AimShotFiredEvent evt)
+        {
+            // Physical recoil on every lock-on burst shot
+            TriggerRecoilKick();
         }
     }
 }

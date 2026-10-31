@@ -1,4 +1,5 @@
 using UnityEngine;
+using LuckyDuelist.Combat;
 using LuckyDuelist.Experiment;
 using LuckyDuelist.UI;
 
@@ -17,6 +18,13 @@ namespace LuckyDuelist.Core
             EnsureExperimentManager();
             EnsureGameManager();
             EnsureResearcherOverlay();
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        public static void InitializeCombatSystems()
+        {
+            EnsureEnemyHealth();
+            EnsureAimStabilizer();
         }
 
         private static void EnsureExperimentManager()
@@ -49,6 +57,26 @@ namespace LuckyDuelist.Core
                 go.AddComponent<SecretOverrideButton>();
                 Object.DontDestroyOnLoad(go);
                 Debug.Log("[AppBootstrapper] Auto-spawned [ResearcherDebugOverlay] (Press F12 to view).");
+            }
+        }
+
+        private static void EnsureEnemyHealth()
+        {
+            if (EnemyHealth.Instance == null)
+            {
+                GameObject go = new GameObject("[EnemyHealth]");
+                go.AddComponent<EnemyHealth>();
+                Debug.Log("[AppBootstrapper] Auto-spawned [EnemyHealth].");
+            }
+        }
+
+        private static void EnsureAimStabilizer()
+        {
+            if (AimStabilizerController.Instance == null)
+            {
+                GameObject go = new GameObject("[AimStabilizerController]");
+                go.AddComponent<AimStabilizerController>();
+                Debug.Log("[AppBootstrapper] Auto-spawned [AimStabilizerController].");
             }
         }
     }
