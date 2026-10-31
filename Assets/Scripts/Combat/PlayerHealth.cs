@@ -27,19 +27,30 @@ namespace LuckyDuelist.Combat
         {
             if (Instance != null && Instance != this)
             {
-                Destroy(gameObject);
+                if (Application.isPlaying) Destroy(gameObject);
+                else DestroyImmediate(gameObject);
                 return;
             }
             Instance = this;
             currentHealth = maxHealth;
         }
 
-        private void Start()
+        private void OnEnable()
         {
             EventBus.Subscribe<PlayerRevivedEvent>(OnPlayerRevived);
             EventBus.Subscribe<StageStartedEvent>(OnStageStarted);
             EventBus.Subscribe<TurnCommittedEvent>(OnTurnCommitted);
+        }
 
+        private void OnDisable()
+        {
+            EventBus.Unsubscribe<PlayerRevivedEvent>(OnPlayerRevived);
+            EventBus.Unsubscribe<StageStartedEvent>(OnStageStarted);
+            EventBus.Unsubscribe<TurnCommittedEvent>(OnTurnCommitted);
+        }
+
+        private void Start()
+        {
             // Initial broadcast
             EventBus.Publish(new PlayerHealthChangedEvent(currentHealth, maxHealth, 0, "Initial"));
         }
@@ -47,10 +58,6 @@ namespace LuckyDuelist.Combat
         private void OnDestroy()
         {
             if (Instance == this) Instance = null;
-
-            EventBus.Unsubscribe<PlayerRevivedEvent>(OnPlayerRevived);
-            EventBus.Unsubscribe<StageStartedEvent>(OnStageStarted);
-            EventBus.Unsubscribe<TurnCommittedEvent>(OnTurnCommitted);
         }
 
         /// <summary>

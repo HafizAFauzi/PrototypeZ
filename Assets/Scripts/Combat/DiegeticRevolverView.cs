@@ -50,7 +50,7 @@ namespace LuckyDuelist.Combat
             }
         }
 
-        private void Start()
+        private void OnEnable()
         {
             EventBus.Subscribe<SlotSpinStartedEvent>(OnSpinStarted);
             EventBus.Subscribe<SlotReelStoppedEvent>(OnReelStopped);
@@ -58,7 +58,7 @@ namespace LuckyDuelist.Combat
             EventBus.Subscribe<TurnCommittedEvent>(OnTurnCommitted);
         }
 
-        private void OnDestroy()
+        private void OnDisable()
         {
             EventBus.Unsubscribe<SlotSpinStartedEvent>(OnSpinStarted);
             EventBus.Unsubscribe<SlotReelStoppedEvent>(OnReelStopped);

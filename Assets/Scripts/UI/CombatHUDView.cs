@@ -68,9 +68,8 @@ namespace LuckyDuelist.UI
             EnsureHUDConstructed();
         }
 
-        private void Start()
+        private void OnEnable()
         {
-            // Subscribe to relevant combat & experiment events
             EventBus.Subscribe<PlayerHealthChangedEvent>(OnPlayerHealthChanged);
             EventBus.Subscribe<SlotSpinStartedEvent>(OnSlotSpinStarted);
             EventBus.Subscribe<SlotReelStoppedEvent>(OnSlotReelStopped);
@@ -80,12 +79,9 @@ namespace LuckyDuelist.UI
             EventBus.Subscribe<TurnCommittedEvent>(OnTurnCommitted);
             EventBus.Subscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
             EventBus.Subscribe<WildJokerResolvedEvent>(OnWildJokerResolved);
-
-            RefreshExperimentGatedUI();
-            RefreshHUD();
         }
 
-        private void OnDestroy()
+        private void OnDisable()
         {
             EventBus.Unsubscribe<PlayerHealthChangedEvent>(OnPlayerHealthChanged);
             EventBus.Unsubscribe<SlotSpinStartedEvent>(OnSlotSpinStarted);
@@ -96,6 +92,12 @@ namespace LuckyDuelist.UI
             EventBus.Unsubscribe<TurnCommittedEvent>(OnTurnCommitted);
             EventBus.Unsubscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
             EventBus.Unsubscribe<WildJokerResolvedEvent>(OnWildJokerResolved);
+        }
+
+        private void Start()
+        {
+            RefreshExperimentGatedUI();
+            RefreshHUD();
         }
 
         #region Event Handlers
