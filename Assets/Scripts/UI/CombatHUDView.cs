@@ -61,6 +61,10 @@ namespace LuckyDuelist.UI
         [SerializeField] private Button wildCounterBtn;
 
         private int _pendingWildReelIndex = -1;
+                [Header("Procedural Fallback Settings")]
+        [Tooltip("If true, automatically creates UI GameObjects at runtime. Set to FALSE if you design your own UI in the Hierarchy.")]
+        [SerializeField] private bool useProceduralUIFallback = false;
+
         private bool _isInitialized = false;
 
         private void Awake()
@@ -494,6 +498,12 @@ namespace LuckyDuelist.UI
         /// </summary>
         private void EnsureHUDConstructed()
         {
+            if (_isInitialized) return;
+            if (!useProceduralUIFallback)
+            {
+                _isInitialized = true;
+                return;
+            }
             if (_isInitialized) return;
 
             if (hudCanvas == null)
