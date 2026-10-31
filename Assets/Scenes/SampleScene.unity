@@ -784,7 +784,25 @@ MonoBehaviour:
   currentState: 0
   autoTransitionFromSplash: 1
   splashDurationSeconds: 2
-  stageConfigurations: []
+  stageConfigurations:
+  - stageNumber: 1
+    stageName: 'Stage 1: Neon Rookie'
+    bossMaxHp: 70
+    baseGoldReward: 100
+    stageDescription: Warm-up stage. 100% slow yellow parryable bullets. Practice
+      knife parry [E].
+  - stageNumber: 2
+    stageName: 'Stage 2: Chrome Gambler'
+    bossMaxHp: 90
+    baseGoldReward: 150
+    stageDescription: Mid-tier duel. Mixed red unparryable bullets (dodge [Q]) and
+      yellow parryable bullets (parry [E]).
+  - stageNumber: 3
+    stageName: 'Stage 3: The Cyber Baron'
+    bossMaxHp: 120
+    baseGoldReward: 250
+    stageDescription: Final Boss. Rapid alternating bursts testing Counter and Mark
+      slot combinations.
   surveyBaseUrl: https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform?usp=pp_url&entry.USER_ID_FIELD={USER_ID}&entry.GROUP_ID_FIELD={GROUP_ID}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
