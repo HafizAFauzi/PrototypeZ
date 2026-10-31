@@ -1,15 +1,16 @@
 # Entity Relationship Diagram (ERD) & Skema Telemetri Data
 **Penelitian**: Komparasi Efektivitas Monetisasi Rewarded Ads dan In-App Purchase (Premium Cosmetics) pada Desain Game Hybrid-Casual Berdasarkan Analisis ARPU  
-**Game**: *Lucky Duelist: Cyber Roulette (1v1 Hybrid-Casual RNG Slot with Action Timing)*  
+**Game**: *Lucky Duelist: Cyber Roulette (1v1 First-Person RNG Slot Battler)*  
+**Perspektif Kamera**: *Full First-Person View (FPS)*  
 **Peneliti**: Hafiz Ahmad Fauzi / 5224600067  
 
 ---
 
 ## 1. Konsep Pemodelan Data
 
-Struktur data prototipe dirancang untuk memenuhi dua kebutuhan utama penelitian:
-1. **Model Relasional (RDBMS Normalized)**: Digunakan untuk struktur database analitik, kamus data yang terstandarisasi, dan kemudahan ekspor ke file CSV/Excel untuk uji hipotesis statistik (*One-Way ANOVA* / $t$-test).
-2. **Model Dokumen NoSQL (Firebase Firestore / Supabase REST)**: Digunakan oleh Unity Client untuk mengirimkan log sesi terpadu (*unified session payload*) secara *real-time* via HTTP POST.
+Struktur data prototipe dirancang untuk merekam perilaku ekonomi pemain (*ARPU*, transaksi *IAP*, dan penayangan *Rewarded Ads*) berdampingan dengan performa refleks sudut pandang orang pertama (*First-Person Combat Stats*):
+1. **Model Relasional (RDBMS Normalized)**: Standar integritas data untuk ekspor ke SPSS / Excel / Python guna uji beda statistik (*One-Way ANOVA* / $t$-test).
+2. **Model Dokumen NoSQL (Firebase Firestore / Supabase REST)**: Pengiriman payload JSON terintegrasi di akhir sesi bermain secara *real-time*.
 
 ---
 
@@ -39,11 +40,10 @@ erDiagram
         datetime created_at "Waktu pertama kali membuka game"
         float initial_wallet_balance "Saldo kuota awal (Rp 20.000)"
         float current_wallet_balance "Sisa saldo kuota eksperimen"
-        int soft_currency_gold "Akumulasi koin hasil kemenangan match"
-        string equipped_skin_body "ID skin avatar yang digunakan"
-        string equipped_skin_gun "ID skin senjata tembak yang digunakan"
-        string equipped_skin_knife "ID skin pisau parry yang digunakan"
-        string equipped_skin_slot "ID skin tema mesin slot yang digunakan"
+        int soft_currency_gold "Akumulasi koin hasil kemenangan duel"
+        string equipped_skin_revolver "ID skin senjata revolver aktif"
+        string equipped_skin_spinner "ID skin silinder mesin slot aktif"
+        string equipped_skin_knife "ID skin pisau parry aktif"
     }
 
     SESSIONS {
@@ -53,7 +53,7 @@ erDiagram
         datetime end_time "Waktu selesai sesi"
         float play_duration_seconds "Durasi responden bermain (detik)"
         int matches_completed "Jumlah duel yang diselesaikan (0-3)"
-        int matches_won "Jumlah kemenangan match"
+        int matches_won "Jumlah kemenangan duel"
         int total_ad_count "Total ad ditonton selama sesi"
         float total_ad_revenue "Total pendapatan iklan sesi (Rp)"
         float total_iap_revenue "Total belanja skin kosmetik (Rp)"
@@ -70,20 +70,21 @@ erDiagram
         int bot_final_hp "Sisa HP bot saat match berakhir"
         string outcome "WIN atau LOSS"
         int aim_lockon_success_count "Jumlah tembakan lock-on berhasil"
-        int dodge_success_count "Jumlah aksi Hindar (Q) berhasil"
-        int perfect_parry_count "Jumlah aksi Tangkis Pisau (E) berhasil"
-        int damage_deflected "Total damage balasan dari aksi parry"
-        int respin_ad_used "Jumlah re-spin slot via Ads"
+        int dodge_red_count "Jumlah aksi Hindar [Q] peluru merah berhasil"
+        int parry_yellow_count "Jumlah aksi Tangkis [E] peluru kuning berhasil"
+        int unparryable_fail_count "Frekuensi salah tekan E saat peluru merah"
+        int damage_deflected "Total damage balasan dari tebasan pisau parry"
+        int respin_ad_used "Jumlah re-spin slot reel via Ads"
         boolean revive_ad_used "Apakah pemain menggunakan revive via Ads"
         boolean double_gold_ad_used "Apakah pemain melipatgandakan koin"
     }
 
     COSMETIC_ITEMS {
-        string item_id PK "ID item kosmetik (misal: SKIN_KNIFE_DAMASCUS)"
-        string item_type "WEAPON_GUN, WEAPON_KNIFE, BODY, SLOT_THEME"
+        string item_id PK "ID item kosmetik (misal: SKIN_REVOLVER_GOLD)"
+        string item_type "WEAPON_REVOLVER, SPINNER, WEAPON_KNIFE"
         string item_name "Nama item di etalase katalog"
         float price_idr "Harga item (Rp 5.000 s/d Rp 15.000)"
-        string asset_sprite_key "Kunci referensi sprite asset di Unity"
+        string asset_prefab_key "Kunci referensi prefab model/sprite di Unity"
         string rarity "COMMON, RARE, EPIC"
     }
 
@@ -129,54 +130,54 @@ erDiagram
 | `initial_wallet_balance`| DECIMAL(10,2) | Saldo kuota eksperimen awal: `20000.00`. |
 | `current_wallet_balance`| DECIMAL(10,2) | Sisa saldo setelah responden membeli skin di toko. |
 | `soft_currency_gold` | INT | Koin emas hasil memenangkan duel. |
-| `equipped_skin_gun` | VARCHAR(50) | ID skin senjata tembak aktif. |
-| `equipped_skin_knife` | VARCHAR(50) | ID skin pisau parry aktif. |
-| `equipped_skin_body` | VARCHAR(50) | ID skin avatar duelis aktif. |
-| `equipped_skin_slot` | VARCHAR(50) | ID tema bingkai mesin slot aktif. |
+| `equipped_skin_revolver`| VARCHAR(50) | ID skin senjata revolver di tangan kanan. |
+| `equipped_skin_spinner` | VARCHAR(50) | ID skin silinder 3-reel slot amunisi. |
+| `equipped_skin_knife` | VARCHAR(50) | ID skin pisau parry di tangan kiri. |
 
-### B. Tabel `MATCH_LOGS` (Statistik Aksi Real-Time)
+### B. Tabel `MATCH_LOGS` (Statistik Refleks FPS)
 | Nama Kolom | Tipe Data | Keterangan & Validasi |
 |---|---|---|
-| `match_id` | VARCHAR(36) [PK] | UUID unik per ronde pertarungan. |
+| `match_id` | VARCHAR(36) [PK] | UUID unik per ronde duel. |
 | `session_id` | VARCHAR(36) [FK] | Relasi ke sesi bermain terkait. |
 | `stage_level` | INT | Tingkat kesulitan: `1` (Rookie), `2` (Gambler), `3` (Boss). |
 | `outcome` | ENUM | `'WIN'` atau `'LOSS'`. |
-| `aim_lockon_success_count`| INT | Frekuensi tembakan berhasil (Lock-On 1.0s penuh). |
-| `dodge_success_count`| INT | Frekuensi tombol Q (Hindar) ditekan tepat waktu. |
-| `perfect_parry_count`| INT | Frekuensi tombol E (Parry Pisau) ditekan tepat di fase kuning. |
-| `damage_deflected` | INT | Total akumulasi damage serangan balik dari aksi parry. |
-| `respin_ad_used` | INT | Frekuensi re-spin slot reel via Rewarded Ads. |
+| `aim_lockon_success_count`| INT | Frekuensi tembakan auto-fire lock-on 1,0s berhasil. |
+| `dodge_red_count` | INT | Frekuensi sukses menghindar [Q] saat peluru merah musuh meluncur. |
+| `parry_yellow_count` | INT | Frekuensi sukses menangkis [E] saat peluru kuning musuh meluncur. |
+| `unparryable_fail_count` | INT | Frekuensi salah menekan E saat serangan merah (gagal parry). |
+| `damage_deflected` | INT | Total damage balasan ke bot dari aksi parry pisau. |
+| `respin_ad_used` | INT | Frekuensi re-spin silinder revolver via Rewarded Ads. |
 | `revive_ad_used` | BOOLEAN | Apakah responden menonton iklan untuk hidup kembali. |
 | `double_gold_ad_used`| BOOLEAN | Apakah responden menonton iklan untuk menggandakan koin. |
 
-### C. Tabel `COSMETIC_ITEMS`
+### C. Tabel `COSMETIC_ITEMS` (Katalog Skin First-Person)
 | Nama Kolom | Tipe Data | Keterangan & Validasi |
 |---|---|---|
-| `item_id` | VARCHAR(50) [PK] | Kode unik item (misal: `SKIN_KNIFE_DAMASCUS`). |
-| `item_type` | ENUM | `'WEAPON_GUN'`, `'WEAPON_KNIFE'`, `'BODY'`, `'SLOT_THEME'`. |
+| `item_id` | VARCHAR(50) [PK] | Kode unik item (misal: `SKIN_REVOLVER_GOLD`). |
+| `item_type` | ENUM | `'WEAPON_REVOLVER'`, `'SPINNER'`, `'WEAPON_KNIFE'`. |
 | `item_name` | VARCHAR(100) | Nama display item di katalog toko. |
 | `price_idr` | DECIMAL(10,2) | Harga item: `5000.00`, `10000.00`, atau `15000.00`. |
-| `asset_sprite_key` | VARCHAR(100) | Kunci string untuk memuat aset sprite di Unity. |
+| `asset_prefab_key` | VARCHAR(100) | Kunci string untuk memuat aset model/material di Unity. |
 
 ---
 
 ## 4. Format Payload Dokumen NoSQL (Firebase Firestore / Supabase)
 
-Data dikirimkan di akhir sesi bermain sebagai satu dokumen terstruktur ke koleksi `telemetry_sessions`:
+Dokumen dikirimkan pada akhir sesi ke collection `telemetry_sessions`:
 
 ```json
 {
-  "user_id": "RES-C-021",
+  "user_id": "RES-C-029",
   "group_id": "GROUP_C",
   "device_model": "Xiaomi Redmi Note 12 / Android 13",
-  "created_at": "2026-11-01T14:20:00Z",
+  "created_at": "2026-11-01T17:10:00Z",
   "session": {
-    "session_id": "a3b9c8e1-7d24-4f89-912a-88f2e411b092",
-    "play_duration_sec": 385.2,
+    "session_id": "c1f7b942-8e12-42da-921a-99d8e411b033",
+    "play_duration_sec": 395.4,
     "matches_completed": 3,
     "matches_won": 3,
     "completed_stage_3": true,
-    "soft_currency_gold": 500
+    "soft_currency_gold": 550
   },
   "monetization": {
     "initial_budget": 20000.0,
@@ -184,16 +185,16 @@ Data dikirimkan di akhir sesi bermain sebagai satu dokumen terstruktur ke koleks
     "total_iap_revenue": 20000.0,
     "purchased_items": [
       {
-        "item_id": "SKIN_KNIFE_DAMASCUS",
-        "item_type": "WEAPON_KNIFE",
+        "item_id": "SKIN_REVOLVER_DAMASCUS",
+        "item_type": "WEAPON_REVOLVER",
         "price": 10000.0,
-        "timestamp": "2026-11-01T14:21:10Z"
+        "timestamp": "2026-11-01T17:11:15Z"
       },
       {
-        "item_id": "SKIN_GUN_NEON_BLASTER",
-        "item_type": "WEAPON_GUN",
+        "item_id": "SKIN_KNIFE_TANTO",
+        "item_type": "WEAPON_KNIFE",
         "price": 10000.0,
-        "timestamp": "2026-11-01T14:21:40Z"
+        "timestamp": "2026-11-01T17:11:40Z"
       }
     ],
     "ad_impressions_count": 3,
@@ -205,12 +206,13 @@ Data dikirimkan di akhir sesi bermain sebagai satu dokumen terstruktur ke koleks
     "total_ad_revenue": 750.0,
     "total_user_arpu": 20750.0
   },
-  "combat_performance": {
-    "total_aim_shots_fired": 9,
-    "total_aim_lockons_successful": 9,
-    "total_dodges_successful": 4,
-    "total_perfect_parries": 3,
-    "total_damage_deflected": 115
+  "fps_combat_performance": {
+    "total_aim_shots_fired": 11,
+    "total_aim_lockons_successful": 11,
+    "total_red_bullets_dodged": 4,
+    "total_yellow_bullets_parried": 3,
+    "total_unparryable_fails": 1,
+    "total_damage_deflected": 120
   },
   "match_details": [
     {
@@ -219,6 +221,7 @@ Data dikirimkan di akhir sesi bermain sebagai satu dokumen terstruktur ke koleks
       "turns": 3,
       "parry_count": 1,
       "dodge_count": 1,
+      "unparryable_fails": 0,
       "ad_respin_count": 0,
       "ad_revive_used": false
     },
@@ -228,6 +231,7 @@ Data dikirimkan di akhir sesi bermain sebagai satu dokumen terstruktur ke koleks
       "turns": 5,
       "parry_count": 1,
       "dodge_count": 2,
+      "unparryable_fails": 1,
       "ad_respin_count": 1,
       "ad_revive_used": false
     },
@@ -237,6 +241,7 @@ Data dikirimkan di akhir sesi bermain sebagai satu dokumen terstruktur ke koleks
       "turns": 7,
       "parry_count": 1,
       "dodge_count": 1,
+      "unparryable_fails": 0,
       "ad_respin_count": 0,
       "ad_revive_used": true
     }
@@ -260,6 +265,4 @@ Data telemetri yang terkumpul dari seluruh responden akan diagregasikan berdasar
    $$\overline{ARPU}_{Total} = \overline{ARPU}_{Ads} + \overline{ARPU}_{IAP}$$
 
 4. **Uji Hipotesis**:
-   Menggunakan **One-Way ANOVA** pada tingkat signifikansi $\alpha = 0,05$ untuk menguji hipotesis:
-   * $H_0: \mu_{ARPU\_A} = \mu_{ARPU\_B} = \mu_{ARPU\_C}$ (Tidak terdapat perbedaan efektivitas pendapatan antar skema monetisasi).
-   * $H_1$: Setidaknya terdapat satu pasang kelompok yang memiliki perbedaan nilai ARPU secara signifikan.
+   Menggunakan **One-Way ANOVA** pada tingkat signifikansi $\alpha = 0,05$ untuk menguji signifikansi perbedaan antara Kelompok A, B, dan C.
