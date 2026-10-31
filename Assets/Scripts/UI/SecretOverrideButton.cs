@@ -3,6 +3,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using LuckyDuelist.Core;
 using LuckyDuelist.Experiment;
+using LuckyDuelist.Monetization;
 
 namespace LuckyDuelist.UI
 {
@@ -64,8 +65,8 @@ namespace LuckyDuelist.UI
             if (!enableDebugOverlay || !_isOverlayVisible) return;
 
             // Researcher OnGUI HUD
-            int boxWidth = 320;
-            int boxHeight = 440;
+            int boxWidth = 340;
+            int boxHeight = 560;
             int margin = 10;
             Rect panelRect = new Rect(Screen.width - boxWidth - margin, margin, boxWidth, boxHeight);
 
@@ -165,6 +166,52 @@ namespace LuckyDuelist.UI
                     }
                     GUILayout.EndHorizontal();
                 }
+            }
+
+            GUILayout.Space(10);
+            GUILayout.Label("<b>Monetization & Ads (Chat 5):</b>");
+            if (DummyAdPlayer.Instance != null)
+            {
+                GUILayout.Label($"<b>Ad Impressions:</b> {DummyAdPlayer.Instance.TotalAdImpressions} (Rp {DummyAdPlayer.Instance.TotalAdRevenue:N0})");
+                if (DummyAdPlayer.Instance.IsPlayingAd)
+                {
+                    GUILayout.Label($"<color=yellow>Ad Playing: {DummyAdPlayer.Instance.RemainingCountdown:F1}s left</color>");
+                    if (GUILayout.Button("Fast-Forward / Complete Ad Now"))
+                    {
+                        DummyAdPlayer.Instance.CompleteAdInstantlyForTesting();
+                    }
+                }
+                else
+                {
+                    GUILayout.BeginHorizontal();
+                    if (GUILayout.Button("Test Revive Ad"))
+                    {
+                        DummyAdPlayer.Instance.PlayReviveAd();
+                    }
+                    if (GUILayout.Button("Test 2x Gold Ad"))
+                    {
+                        DummyAdPlayer.Instance.PlayDoubleGoldAd();
+                    }
+                    GUILayout.EndHorizontal();
+                }
+            }
+
+            if (VirtualIAPStore.Instance != null)
+            {
+                GUILayout.Label($"<b>IAP Store Revenue:</b> Rp {VirtualIAPStore.Instance.TotalIAPRevenue:N0} (Tx: {VirtualIAPStore.Instance.TotalTransactions})");
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button(VirtualIAPStore.Instance.IsStoreOpen ? "Close Store" : "Open IAP Store"))
+                {
+                    if (VirtualIAPStore.Instance.IsStoreOpen)
+                        VirtualIAPStore.Instance.CloseStore();
+                    else
+                        VirtualIAPStore.Instance.OpenStore();
+                }
+                if (GUILayout.Button("Reset Store Data"))
+                {
+                    VirtualIAPStore.Instance.ResetStoreDataForTesting();
+                }
+                GUILayout.EndHorizontal();
             }
 
             GUILayout.EndArea();

@@ -100,6 +100,7 @@ namespace LuckyDuelist.Combat
         private int _shotsFiredInSession = 0;
         private bool _isDragging = false;
         private Vector2 _lastPointerPosition;
+        private Color _reticleBaseColor = new Color(0f, 1f, 0.9f, 0.95f);
 
         // Public Properties
         public AimState CurrentState => _currentState;
@@ -114,6 +115,19 @@ namespace LuckyDuelist.Combat
         public Vector2 TargetBoxSize => targetBoxSize;
         public float BaseVitalRadius => baseVitalRadius;
         public int BaseDamage => baseDamage;
+        public Color ReticleBaseColor => _reticleBaseColor;
+
+        /// <summary>
+        /// Sets reticle color tint from equipped weapon cosmetics.
+        /// </summary>
+        public void SetReticleColorTint(Color color)
+        {
+            _reticleBaseColor = color;
+            if (reticleImage != null)
+            {
+                reticleImage.color = color;
+            }
+        }
 
         private void Awake()
         {
@@ -492,7 +506,7 @@ namespace LuckyDuelist.Combat
                 }
                 else
                 {
-                    reticleImage.color = new Color(0f, 1f, 0.9f, 0.95f);
+                    reticleImage.color = _reticleBaseColor;
                 }
             }
 

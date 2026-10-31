@@ -5,6 +5,7 @@ using LuckyDuelist.Combat;
 using LuckyDuelist.Core;
 using LuckyDuelist.Events;
 using LuckyDuelist.Experiment;
+using LuckyDuelist.Monetization;
 
 namespace LuckyDuelist.UI
 {
@@ -509,8 +510,14 @@ namespace LuckyDuelist.UI
 
             if (controller.CanRespinReel(reelIndex))
             {
-                // In production this will invoke DummyAdPlayer. In prototype it triggers reel respin!
-                controller.RespinReel(reelIndex, isAdWatched: true);
+                if (DummyAdPlayer.Instance != null && ExperimentManager.Instance != null && ExperimentManager.Instance.IsRespinAdEnabled)
+                {
+                    DummyAdPlayer.Instance.PlayRespinAd(reelIndex);
+                }
+                else
+                {
+                    controller.RespinReel(reelIndex, isAdWatched: true);
+                }
             }
         }
 
@@ -524,7 +531,14 @@ namespace LuckyDuelist.UI
             {
                 if (controller.CanRespinReel(i))
                 {
-                    controller.RespinReel(i, isAdWatched: true);
+                    if (DummyAdPlayer.Instance != null && ExperimentManager.Instance != null && ExperimentManager.Instance.IsRespinAdEnabled)
+                    {
+                        DummyAdPlayer.Instance.PlayRespinAd(i);
+                    }
+                    else
+                    {
+                        controller.RespinReel(i, isAdWatched: true);
+                    }
                     break;
                 }
             }

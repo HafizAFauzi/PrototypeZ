@@ -2,6 +2,7 @@ using UnityEngine;
 using LuckyDuelist.Combat;
 using LuckyDuelist.Experiment;
 using LuckyDuelist.UI;
+using LuckyDuelist.Monetization;
 
 namespace LuckyDuelist.Core
 {
@@ -17,6 +18,9 @@ namespace LuckyDuelist.Core
         {
             EnsureExperimentManager();
             EnsureGameManager();
+            EnsureDummyAdPlayer();
+            EnsureVirtualIAPStore();
+            EnsureCosmeticApplier();
             EnsureResearcherOverlay();
         }
 
@@ -50,6 +54,39 @@ namespace LuckyDuelist.Core
                 go.AddComponent<GameManager>();
                 Object.DontDestroyOnLoad(go);
                 Debug.Log("[AppBootstrapper] Auto-spawned persistent [GameManager].");
+            }
+        }
+
+        private static void EnsureDummyAdPlayer()
+        {
+            if (DummyAdPlayer.Instance == null)
+            {
+                GameObject go = new GameObject("[DummyAdPlayer]");
+                go.AddComponent<DummyAdPlayer>();
+                Object.DontDestroyOnLoad(go);
+                Debug.Log("[AppBootstrapper] Auto-spawned persistent [DummyAdPlayer].");
+            }
+        }
+
+        private static void EnsureVirtualIAPStore()
+        {
+            if (VirtualIAPStore.Instance == null)
+            {
+                GameObject go = new GameObject("[VirtualIAPStore]");
+                go.AddComponent<VirtualIAPStore>();
+                Object.DontDestroyOnLoad(go);
+                Debug.Log("[AppBootstrapper] Auto-spawned persistent [VirtualIAPStore].");
+            }
+        }
+
+        private static void EnsureCosmeticApplier()
+        {
+            if (CosmeticApplier.Instance == null)
+            {
+                GameObject go = new GameObject("[CosmeticApplier]");
+                go.AddComponent<CosmeticApplier>();
+                Object.DontDestroyOnLoad(go);
+                Debug.Log("[AppBootstrapper] Auto-spawned persistent [CosmeticApplier].");
             }
         }
 
