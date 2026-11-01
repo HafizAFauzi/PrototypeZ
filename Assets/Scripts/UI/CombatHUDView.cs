@@ -253,7 +253,7 @@ namespace LuckyDuelist.UI
                 respinAdButton.interactable = canRespin;
                 if (respinAdText != null)
                 {
-                    respinAdText.text = controller.HasUsedRespinThisTurn ? "[ RE-SPIN TERPAKAI ]" : "[ RE-SPIN VIA ADS ]";
+                    respinAdText.text = controller.HasUsedRespinThisTurn ? "RE-SPIN TERPAKAI" : "RE-SPIN VIA ADS";
                 }
             }
         }
@@ -654,7 +654,7 @@ namespace LuckyDuelist.UI
             titleTmp.fontStyle = FontStyles.Bold;
             titleTmp.alignment = TextAlignmentOptions.Center;
             titleTmp.color = new Color(0.95f, 0.35f, 1f);
-            titleTmp.text = "⭐ WILD JOKER AKTIF ⭐\nPilih Simbol Pengganti:";
+            titleTmp.text = " WILD JOKER AKTIF \nPilih Simbol Pengganti:";
             titleTmp.raycastTarget = false;
 
             // 4 Option Buttons (Attack, Mark, Heal, Counter)
