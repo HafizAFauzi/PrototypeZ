@@ -30,6 +30,8 @@ namespace LuckyDuelist.Core
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         public static void InitializeCombatSystems()
         {
+            EnsureSlotRevolver();
+            EnsurePlayerHealth();
             EnsureEnemyHealth();
             EnsureAimStabilizer();
             EnsureFPSCameraController();
@@ -123,6 +125,28 @@ namespace LuckyDuelist.Core
                 go.AddComponent<SecretOverrideButton>();
                 Object.DontDestroyOnLoad(go);
                 Debug.Log("[AppBootstrapper] Auto-spawned [ResearcherDebugOverlay] (Press F12 to view).");
+            }
+        }
+
+        private static void EnsureSlotRevolver()
+        {
+            if (SlotRevolverController.Instance == null)
+            {
+                GameObject go = new GameObject("[SlotRevolverController]");
+                go.AddComponent<SlotRevolverController>();
+                Object.DontDestroyOnLoad(go);
+                Debug.Log("[AppBootstrapper] Auto-spawned persistent [SlotRevolverController].");
+            }
+        }
+
+        private static void EnsurePlayerHealth()
+        {
+            if (PlayerHealth.Instance == null)
+            {
+                GameObject go = new GameObject("[PlayerHealth]");
+                go.AddComponent<PlayerHealth>();
+                Object.DontDestroyOnLoad(go);
+                Debug.Log("[AppBootstrapper] Auto-spawned persistent [PlayerHealth].");
             }
         }
 

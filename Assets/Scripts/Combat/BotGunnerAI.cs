@@ -53,7 +53,8 @@ namespace LuckyDuelist.Combat
         {
             if (Instance != null && Instance != this)
             {
-                Destroy(gameObject);
+                if (Application.isPlaying) Destroy(this);
+                else DestroyImmediate(this);
                 return;
             }
             Instance = this;

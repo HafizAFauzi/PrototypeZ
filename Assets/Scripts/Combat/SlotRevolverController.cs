@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using LuckyDuelist.Core;
 using LuckyDuelist.Events;
 using LuckyDuelist.Experiment;
 
@@ -68,7 +69,8 @@ namespace LuckyDuelist.Combat
         {
             if (Instance != null && Instance != this)
             {
-                Destroy(gameObject);
+                if (Application.isPlaying) Destroy(this);
+                else DestroyImmediate(this);
                 return;
             }
             Instance = this;
@@ -80,9 +82,26 @@ namespace LuckyDuelist.Combat
             }
         }
 
+        private void OnEnable()
+        {
+            EventBus.Subscribe<StageStartedEvent>(OnStageStarted);
+        }
+
+        private void OnDisable()
+        {
+            EventBus.Unsubscribe<StageStartedEvent>(OnStageStarted);
+        }
+
+        private void OnStageStarted(StageStartedEvent evt)
+        {
+            ResetForNewMatch();
+            Debug.Log($"[SlotRevolverController] Reset for Stage {evt.StageNumber}: {evt.StageName}. Turn reset to 1.");
+        }
+
         private void OnDestroy()
         {
             if (Instance == this) Instance = null;
+            EventBus.Unsubscribe<StageStartedEvent>(OnStageStarted);
         }
 
         private void Update()
@@ -184,6 +203,8 @@ namespace LuckyDuelist.Combat
         {
             if (_isSpinning || _hasSpunThisTurn) return false;
             if (AimStabilizerController.Instance != null && AimStabilizerController.Instance.IsAiming) return false;
+            if (DefenseQTEController.Instance != null && DefenseQTEController.Instance.IsDefensePhaseActive) return false;
+            if (GameManager.Instance != null && (GameManager.Instance.CurrentState == GameState.MatchSettlement || GameManager.Instance.CurrentState == GameState.FinalSettlement)) return false;
             return true;
         }
 

@@ -60,11 +60,13 @@ namespace LuckyDuelist.Tests
 
             _defenseGo = new GameObject("TestDefenseQTE");
             _defenseController = _defenseGo.AddComponent<DefenseQTEController>();
+            _defenseController.SubscribeEvents();
         }
 
         [TearDown]
         public void TearDown()
         {
+            if (_defenseController != null) _defenseController.UnsubscribeEvents();
             if (_defenseGo != null) Object.DestroyImmediate(_defenseGo);
             if (_botAiGo != null) Object.DestroyImmediate(_botAiGo);
             if (_knifeGo != null) Object.DestroyImmediate(_knifeGo);
@@ -467,6 +469,25 @@ namespace LuckyDuelist.Tests
 
             Assert.AreEqual(0, _enemyHealth.CurrentHealth);
             Assert.IsFalse(_enemyHealth.IsAlive);
+        }
+
+        [Test]
+        public void StageTransition_EnemyHealthResetsForStage2AndStage3()
+        {
+            // Stage 1 -> 70 HP
+            _enemyHealth.ResetForStage(1, "Neon Rookie", 70);
+            Assert.AreEqual(70, _enemyHealth.MaxHealth);
+            Assert.AreEqual(70, _enemyHealth.CurrentHealth);
+
+            // Stage 2 -> 90 HP
+            _enemyHealth.ResetForStage(2, "Chrome Gambler", 90);
+            Assert.AreEqual(90, _enemyHealth.MaxHealth);
+            Assert.AreEqual(90, _enemyHealth.CurrentHealth);
+
+            // Stage 3 -> 120 HP
+            _enemyHealth.ResetForStage(3, "The Cyber Baron", 120);
+            Assert.AreEqual(120, _enemyHealth.MaxHealth);
+            Assert.AreEqual(120, _enemyHealth.CurrentHealth);
         }
 
         #endregion
