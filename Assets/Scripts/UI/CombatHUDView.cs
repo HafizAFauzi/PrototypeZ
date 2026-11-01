@@ -13,9 +13,9 @@ namespace LuckyDuelist.UI
     /// Manages the First-Person Bottom-Left Minimalist HUD Canvas.
     /// Includes:
     /// 1. Health Bar (Slider + Dynamic TMP_Text "HP: 100/100" with low HP color shifting).
-    /// 2. 3-Reel Cylinder Display (Cards showing symbol icon, name, neon color & Re-spin triggers).
+    /// 2. 3-Reel Cylinder Display (Cards showing symbol icon, name, neon color).
     /// 3. Main Action Button ("PUTAR SILINDER" / "EKSEKUSI GILIRAN").
-    /// 4. Re-spin via Rewarded Ad Button (Gated by ExperimentGroup: Group A & C visible, Group B hidden).
+    /// 4. Full 3-Reel Re-spin via Rewarded Ad Button (Gated by ExperimentGroup: Group A & C visible, Group B hidden).
     /// 5. Defense Prompt Badges ([Q: HINDAR] | [E: PARRY PISAU]).
     /// 6. Wild Joker Selection Modal.
     ///
@@ -33,10 +33,8 @@ namespace LuckyDuelist.UI
         [SerializeField] private Image healthFillImage;
 
         [Header("3 Cylinder Reels")]
-        [SerializeField] private Button[] reelCards = new Button[3];
         [SerializeField] private TMP_Text[] reelSymbolTexts = new TMP_Text[3];
         [SerializeField] private Image[] reelCardBorders = new Image[3];
-        [SerializeField] private Button[] reelRespinButtons = new Button[3];
 
         [Header("Primary Action Buttons")]
         [SerializeField] private Button spinOrCommitButton;
@@ -116,10 +114,6 @@ namespace LuckyDuelist.UI
                 if (reelSymbolTexts != null && i < reelSymbolTexts.Length && reelSymbolTexts[i] != null)
                 {
                     reelSymbolTexts[i].text = "🎰\n...";
-                }
-                if (reelRespinButtons != null && i < reelRespinButtons.Length && reelRespinButtons[i] != null)
-                {
-                    reelRespinButtons[i].gameObject.SetActive(false);
                 }
             }
         }
@@ -220,6 +214,7 @@ namespace LuckyDuelist.UI
             {
                 if (spinOrCommitButton != null) spinOrCommitButton.interactable = false;
                 if (spinOrCommitText != null) spinOrCommitText.text = "MEMUTAR...";
+                if (respinAdButton != null) respinAdButton.interactable = false;
                 return;
             }
 
@@ -237,35 +232,17 @@ namespace LuckyDuelist.UI
                 if (spinOrCommitText != null) spinOrCommitText.text = "EKSEKUSI GILIRAN";
             }
 
-            // Update Respin button
-            bool respinEnabled = false;
-            for (int i = 0; i < 3; i++)
-            {
-                if (controller.CanRespinReel(i))
-                {
-                    respinEnabled = true;
-                    break;
-                }
-            }
-
+            // Update Full 3-Reel Respin button
             bool isAdsEnabled = ExperimentManager.Instance == null || ExperimentManager.Instance.IsRespinAdEnabled;
+            bool canRespin = controller.CanRespin();
+
             if (respinAdButton != null)
             {
                 respinAdButton.gameObject.SetActive(isAdsEnabled);
-                respinAdButton.interactable = respinEnabled && !controller.HasUsedRespinThisTurn;
+                respinAdButton.interactable = canRespin;
                 if (respinAdText != null)
                 {
                     respinAdText.text = controller.HasUsedRespinThisTurn ? "[ 🎬 RE-SPIN TERPAKAI ]" : "[ 🎬 RE-SPIN VIA ADS ]";
-                }
-            }
-
-            // Reel individual respin buttons
-            for (int i = 0; i < 3; i++)
-            {
-                if (reelRespinButtons != null && i < reelRespinButtons.Length && reelRespinButtons[i] != null)
-                {
-                    bool canRespinThis = isAdsEnabled && controller.CanRespinReel(i);
-                    reelRespinButtons[i].gameObject.SetActive(canRespinThis);
                 }
             }
         }
@@ -317,14 +294,6 @@ namespace LuckyDuelist.UI
             {
                 respinAdButton.gameObject.SetActive(allowRespinAd);
             }
-
-            for (int i = 0; i < 3; i++)
-            {
-                if (reelRespinButtons != null && i < reelRespinButtons.Length && reelRespinButtons[i] != null)
-                {
-                    reelRespinButtons[i].gameObject.SetActive(allowRespinAd);
-                }
-            }
         }
 
         #endregion
@@ -351,35 +320,18 @@ namespace LuckyDuelist.UI
             }
         }
 
-        public void OnReelCardClicked(int reelIndex)
-        {
-            // Direct 3-reel model: reel card clicking reserved for future inspection or respin
-        }
-
-        public void OnRespinButtonClicked(int reelIndex)
-        {
-            var controller = SlotRevolverController.Instance;
-            if (controller == null) return;
-
-            if (controller.CanRespinReel(reelIndex))
-            {
-                controller.RespinReel(reelIndex, isAdWatched: true);
-            }
-        }
-
+        /// <summary>
+        /// Triggered when the main orange [ RE-SPIN VIA ADS ] button is clicked.
+        /// Re-spins all 3 reels on the cylinder.
+        /// </summary>
         public void OnMainRespinAdButtonClicked()
         {
             var controller = SlotRevolverController.Instance;
             if (controller == null) return;
 
-            // Find first available reel to re-spin
-            for (int i = 0; i < 3; i++)
+            if (controller.CanRespin())
             {
-                if (controller.CanRespinReel(i))
-                {
-                    controller.RespinReel(i, isAdWatched: true);
-                    break;
-                }
+                controller.RespinAllReels(isAdWatched: true);
             }
         }
 
@@ -530,7 +482,6 @@ namespace LuckyDuelist.UI
 
             for (int i = 0; i < 3; i++)
             {
-                int rIdx = i;
                 var cardGo = new GameObject($"ReelCard_{i}");
                 var cardRect = cardGo.AddComponent<RectTransform>();
                 cardRect.SetParent(reelsRect, false);
@@ -541,9 +492,6 @@ namespace LuckyDuelist.UI
 
                 reelCardBorders[i] = cardGo.AddComponent<Image>();
                 reelCardBorders[i].color = new Color(0.2f, 0.25f, 0.35f, 1f);
-
-                reelCards[i] = cardGo.AddComponent<Button>();
-                reelCards[i].onClick.AddListener(() => OnReelCardClicked(rIdx));
 
                 var txtGo = new GameObject("SymbolText");
                 var txtRect = txtGo.AddComponent<RectTransform>();
@@ -560,30 +508,6 @@ namespace LuckyDuelist.UI
                 rTmp.text = "\u2694\nATTACK";
                 rTmp.color = SlotSymbolMetadata.GetColor(SlotSymbol.ATTACK);
                 reelSymbolTexts[i] = rTmp;
-
-                // Small respin button overlay
-                var respinBtnGo = new GameObject("RespinBtn");
-                var respinRect = respinBtnGo.AddComponent<RectTransform>();
-                respinRect.SetParent(cardRect, false);
-                respinRect.anchorMin = new Vector2(0.1f, 0.05f);
-                respinRect.anchorMax = new Vector2(0.9f, 0.35f);
-                respinRect.offsetMin = Vector2.zero;
-                respinRect.offsetMax = Vector2.zero;
-
-                var respinImg = respinBtnGo.AddComponent<Image>();
-                respinImg.color = new Color(0.9f, 0.6f, 0.1f, 0.9f);
-                reelRespinButtons[i] = respinBtnGo.AddComponent<Button>();
-                reelRespinButtons[i].onClick.AddListener(() => OnRespinButtonClicked(rIdx));
-
-                var rSubTmp = new GameObject("Text").AddComponent<TextMeshProUGUI>();
-                rSubTmp.transform.SetParent(respinRect, false);
-                rSubTmp.rectTransform.anchorMin = Vector2.zero;
-                rSubTmp.rectTransform.anchorMax = Vector2.one;
-                rSubTmp.fontSize = 11;
-                rSubTmp.alignment = TextAlignmentOptions.Center;
-                rSubTmp.color = Color.black;
-                rSubTmp.text = "🎬 Re-spin";
-                reelRespinButtons[i].gameObject.SetActive(false);
             }
 
             // 3. Primary Spin / Commit Button

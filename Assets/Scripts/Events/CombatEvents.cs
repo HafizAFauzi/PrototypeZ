@@ -47,20 +47,20 @@ namespace LuckyDuelist.Events
     }
 
     /// <summary>
-    /// Dispatched when a single reel is re-spun (e.g. via Rewarded Ad in Group A or C).
+    /// Dispatched when all 3 reels in the cylinder are re-spun (e.g. via Rewarded Ad in Group A or C).
     /// </summary>
     public struct SlotRespinTriggeredEvent
     {
-        public int ReelIndex;
-        public SlotSymbol OldSymbol;
-        public SlotSymbol NewSymbol;
+        public int TurnNumber;
+        public SlotSymbol[] OldSymbols;
+        public SlotSymbol[] NewSymbols;
         public bool ViaRewardedAd;
 
-        public SlotRespinTriggeredEvent(int reelIndex, SlotSymbol oldSymbol, SlotSymbol newSymbol, bool viaRewardedAd)
+        public SlotRespinTriggeredEvent(int turnNumber, SlotSymbol[] oldSymbols, SlotSymbol[] newSymbols, bool viaRewardedAd)
         {
-            ReelIndex = reelIndex;
-            OldSymbol = oldSymbol;
-            NewSymbol = newSymbol;
+            TurnNumber = turnNumber;
+            OldSymbols = oldSymbols;
+            NewSymbols = newSymbols;
             ViaRewardedAd = viaRewardedAd;
         }
     }

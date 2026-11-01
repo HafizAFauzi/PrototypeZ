@@ -13,7 +13,7 @@ namespace LuckyDuelist.Combat
     /// 1. Probabilistic rolling of 5 symbols (ATTACK 35%, MARK 20%, HEAL 20%, COUNTER 15%, WILD 10%).
     /// 2. 3-Reel diegetic cylinder spinning with staggered stopping & visual/audio hooks.
     /// 3. Direct 3-reel action execution on turn commit.
-    /// 4. Single-reel re-spin via Rewarded Ads (max 1x per turn, gated by ExperimentManager: Group A & C enabled, Group B disabled).
+    /// 4. Full 3-reel re-spin via Rewarded Ads (max 1x per turn, gated by ExperimentManager: Group A & C enabled, Group B disabled).
     /// 5. Wild Joker resolution & turn commitment.
     /// </summary>
     public class SlotRevolverController : MonoBehaviour
@@ -263,20 +263,18 @@ namespace LuckyDuelist.Combat
 
         #endregion
 
-        #region Re-Spin Single Reel via Rewarded Ads
+        #region Re-Spin All 3 Reels via Rewarded Ads
 
         /// <summary>
-        /// Checks whether a specific reel can be re-spun via Rewarded Ad.
+        /// Checks whether the cylinder can be re-spun via Rewarded Ad.
         /// Rules:
-        /// - Reel index must be 0, 1, or 2.
         /// - Cylinder must have spun and finished spinning.
         /// - Turn must not be committed.
-        /// - Max 1 respin per turn.
+        /// - Max 1 re-spin per turn.
         /// - Experiment Group must have IsRespinAdEnabled == true (Group A & C: true, Group B: false).
         /// </summary>
-        public bool CanRespinReel(int reelIndex)
+        public bool CanRespin()
         {
-            if (reelIndex < 0 || reelIndex >= REEL_COUNT) return false;
             if (!_hasSpunThisTurn || _isSpinning || _turnCommitted) return false;
             if (_hasUsedRespinThisTurn) return false;
 
@@ -289,31 +287,77 @@ namespace LuckyDuelist.Combat
         }
 
         /// <summary>
-        /// Re-spins a single reel. Re-rolls symbol and sets HasUsedRespinThisTurn flag.
+        /// Re-spins all 3 reels on the cylinder with full visual animation and audio.
         /// </summary>
-        public bool RespinReel(int reelIndex, bool isAdWatched = false)
+        public bool RespinAllReels(bool isAdWatched = false)
         {
-            if (!CanRespinReel(reelIndex))
+            if (!CanRespin())
             {
-                Debug.LogWarning($"[SlotRevolverController] Cannot respin reel {reelIndex}. Validation failed.");
+                Debug.LogWarning("[SlotRevolverController] Cannot respin: validation failed.");
                 return false;
             }
 
-            SlotSymbol oldSymbol = _currentReelSymbols[reelIndex];
-            SlotSymbol newSymbol = RollSymbol();
-            _currentReelSymbols[reelIndex] = newSymbol;
             _hasUsedRespinThisTurn = true;
+            StartCoroutine(RespinRoutine(isAdWatched));
+            return true;
+        }
 
-            if (audioSource != null && reelStopSfx != null)
+        /// <summary>
+        /// Instantly re-spins all 3 reels (useful for unit tests or instant playback).
+        /// </summary>
+        public void RespinAllReelsInstant(bool isAdWatched = false)
+        {
+            if (!CanRespin()) return;
+
+            _hasUsedRespinThisTurn = true;
+            SlotSymbol[] oldSymbols = (SlotSymbol[])_currentReelSymbols.Clone();
+
+            for (int i = 0; i < REEL_COUNT; i++)
             {
-                audioSource.PlayOneShot(reelStopSfx);
+                _currentReelSymbols[i] = RollSymbol();
+                EventBus.Publish(new SlotReelStoppedEvent(i, _currentReelSymbols[i]));
             }
 
-            Debug.Log($"[SlotRevolverController] Reel {reelIndex} re-spun from {oldSymbol} to {newSymbol} (AdWatched: {isAdWatched}).");
-            EventBus.Publish(new SlotRespinTriggeredEvent(reelIndex, oldSymbol, newSymbol, isAdWatched));
-            EventBus.Publish(new SlotReelStoppedEvent(reelIndex, newSymbol));
+            Debug.Log($"[SlotRevolverController] All 3 reels re-spun (AdWatched: {isAdWatched}).");
+            EventBus.Publish(new SlotRespinTriggeredEvent(_turnNumber, oldSymbols, CurrentReelSymbols, isAdWatched));
+            EventBus.Publish(new SlotSpinCompletedEvent(_turnNumber, CurrentReelSymbols));
+        }
 
-            return true;
+        private IEnumerator RespinRoutine(bool isAdWatched)
+        {
+            _isSpinning = true;
+            SlotSymbol[] oldSymbols = (SlotSymbol[])_currentReelSymbols.Clone();
+
+            EventBus.Publish(new SlotSpinStartedEvent(_turnNumber));
+
+            if (audioSource != null && cylinderSpinSfx != null)
+            {
+                audioSource.PlayOneShot(cylinderSpinSfx);
+            }
+
+            yield return new WaitForSeconds(firstReelStopDelay);
+
+            for (int i = 0; i < REEL_COUNT; i++)
+            {
+                _currentReelSymbols[i] = RollSymbol();
+
+                if (audioSource != null && reelStopSfx != null)
+                {
+                    audioSource.PlayOneShot(reelStopSfx);
+                }
+
+                EventBus.Publish(new SlotReelStoppedEvent(i, _currentReelSymbols[i]));
+
+                if (i < REEL_COUNT - 1)
+                {
+                    yield return new WaitForSeconds(spinReelInterval);
+                }
+            }
+
+            _isSpinning = false;
+            Debug.Log($"[SlotRevolverController] All 3 reels re-spun (AdWatched: {isAdWatched}).");
+            EventBus.Publish(new SlotRespinTriggeredEvent(_turnNumber, oldSymbols, CurrentReelSymbols, isAdWatched));
+            EventBus.Publish(new SlotSpinCompletedEvent(_turnNumber, CurrentReelSymbols));
         }
 
         #endregion

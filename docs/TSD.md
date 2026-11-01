@@ -81,7 +81,7 @@
   ```
 * **Mekanisme Alur Silinder**:
   1. *Spin Animation*: Saat tombol "Putar Silinder" ditekan, silinder revolver berputar dengan efek suara mekanis (*click-clack-clack*).
-  2. *Re-spin 1 Reel via Ad*: Jika pemain berada di Group A atau C, pemain dapat memicu *DummyAdPlayer* (10 detik) untuk memutar ulang salah satu reel yang tidak diinginkan.
+  2. *Full Re-spin 3-Reel via Ad*: Jika pemain berada di Group A atau C, pemain dapat memicu *DummyAdPlayer* (10 detik) untuk memutar ulang ketiga reel silinder revolver sekaligus.
   3. *Direct Action Resolution*: Seluruh 3 reel silinder langsung dieksekusi secara berurutan pada giliran aktif (tanpa sistem hold).
 
 ---
@@ -138,5 +138,5 @@
   * `HealthBarSlider`: Nilai 0 s/d 100 dengan teks dinamik `"HP: 80/100"`.
   * `ReelsContainer`: Menampung 3 kartu reel silinder.
   * `SpinButton`: Tombol utama pemicu putaran silinder revolver.
-  * `RespinAdButton`: Tombol bertanda ikon video clapper/ad untuk re-spin 1 reel (hanya tampil pada Group A dan C).
+  * `RespinAdButton`: Tombol bertanda ikon video clapper/ad untuk re-spin seluruh 3 reel (hanya tampil pada Group A dan C).
   * `DefensePromptContainer`: Indikator visual tombol `[Q: HINDAR]` dan `[E: PARRY]` yang memandu pemain baru.

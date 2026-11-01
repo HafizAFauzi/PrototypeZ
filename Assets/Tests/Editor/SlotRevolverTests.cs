@@ -146,37 +146,37 @@ namespace LuckyDuelist.Tests
 
         #endregion
 
-        #region Single Reel Re-Spin & Feature Gating Tests
+        #region Full 3-Reel Re-Spin & Feature Gating Tests
 
         [Test]
-        public void RespinReel_GroupA_AllowsOneRespinPerTurn()
+        public void RespinAllReels_GroupA_AllowsOneRespinPerTurn()
         {
             _experimentManager.SetGroupOverride(ExperimentGroup.GroupA_DominantAds);
             _controller.SpinCylinderInstant();
 
-            Assert.IsTrue(_controller.CanRespinReel(0));
+            Assert.IsTrue(_controller.CanRespin());
             Assert.IsFalse(_controller.HasUsedRespinThisTurn);
 
-            bool respun = _controller.RespinReel(0, isAdWatched: true);
-            Assert.IsTrue(respun);
+            bool respunEventReceived = false;
+            EventBus.Subscribe<SlotRespinTriggeredEvent>(evt => respunEventReceived = true);
+
+            _controller.RespinAllReelsInstant(isAdWatched: true);
+            Assert.IsTrue(respunEventReceived);
             Assert.IsTrue(_controller.HasUsedRespinThisTurn);
+            Assert.AreEqual(3, _controller.CurrentReelSymbols.Length);
 
             // Second respin in same turn must be rejected
-            Assert.IsFalse(_controller.CanRespinReel(1));
-            bool secondRespin = _controller.RespinReel(1, isAdWatched: true);
-            Assert.IsFalse(secondRespin);
+            Assert.IsFalse(_controller.CanRespin());
         }
 
         [Test]
-        public void RespinReel_GroupB_DisallowsRespinViaAd()
+        public void RespinAllReels_GroupB_DisallowsRespinViaAd()
         {
             _experimentManager.SetGroupOverride(ExperimentGroup.GroupB_DominantIAP);
             _controller.SpinCylinderInstant();
 
-            // Group B has ads disabled, so CanRespinReel must return false
-            Assert.IsFalse(_controller.CanRespinReel(0));
-            bool attempted = _controller.RespinReel(0, isAdWatched: true);
-            Assert.IsFalse(attempted);
+            // Group B has ads disabled, so CanRespin must return false
+            Assert.IsFalse(_controller.CanRespin());
         }
 
         #endregion
@@ -190,7 +190,7 @@ namespace LuckyDuelist.Tests
 
             // Set all weights to 0 except Wild
             _controller.SetWeights(0, 0, 0, 0, 100);
-            _controller.RespinReel(0, isAdWatched: false);
+            _controller.RespinAllReelsInstant(isAdWatched: false);
 
             Assert.AreEqual(SlotSymbol.WILD_JOKER, _controller.CurrentReelSymbols[0]);
             Assert.IsTrue(_controller.HasPendingWildJoker(out int reelIdx));

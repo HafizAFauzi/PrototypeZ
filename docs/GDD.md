@@ -64,7 +64,7 @@ Setiap giliran, silinder revolver berputar mengacak 3 simbol aksi:
 ### 2.3. Sistem Eksekusi 3-Reel Langsung (Direct Action Resolution)
 Terletak pada HUD minimalis di pojok kiri bawah:
 1. Setiap giliran, pemain menekan tombol **"PUTAR SILINDER"** untuk mengacak ketiga reel silinder revolver.
-2. Pemain dapat memanfaatkan fitur **Re-spin 1 Reel via Rewarded Ads** (1x per giliran, aktif pada Group A & C) jika ingin memutar ulang salah satu reel yang tidak diinginkan.
+2. Pemain dapat memanfaatkan fitur **Full Re-spin 3-Reel via Rewarded Ads** (1x per giliran, aktif pada Group A & C) jika ingin memutar ulang ketiga reel silinder sekaligus untuk mendapatkan kombinasi simbol yang lebih menguntungkan (*second-chance re-roll*).
 3. Seluruh 3 simbol yang terkunci pada silinder langsung dieksekusi secara berurutan saat pemain menekan tombol **"EKSEKUSI GILIRAN"** (*Direct 3-Reel Action Resolution*).
 
 ---
