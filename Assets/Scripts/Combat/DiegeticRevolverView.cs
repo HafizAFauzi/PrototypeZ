@@ -30,6 +30,12 @@ namespace LuckyDuelist.Combat
         [SerializeField] private float recoilKickAngle = -8f;
         [SerializeField] private float recoilKickDistance = 0.2f;
         [SerializeField] private float recoilRecoverySpeed = 12f;
+        [Tooltip("Delay between burst shots when multiple ATTACK symbols are executed")]
+        [SerializeField] private float burstShotInterval = 0.32f;
+
+        [Header("Audio (Optional)")]
+        [SerializeField] private AudioSource audioSource;
+        [SerializeField] private AudioClip gunshotSfx;
 
         [Header("Chamber Lights & Renderers (Optional)")]
         [SerializeField] private Light[] chamberLights;
@@ -40,6 +46,7 @@ namespace LuckyDuelist.Combat
         private float _currentSpinSpeed = 0f;
         private Vector3 _originalWeaponPos;
         private Quaternion _originalWeaponRot;
+        private Coroutine _recoilCoroutine;
 
         private void Awake()
         {
@@ -47,6 +54,16 @@ namespace LuckyDuelist.Combat
             {
                 _originalWeaponPos = weaponRoot.localPosition;
                 _originalWeaponRot = weaponRoot.localRotation;
+            }
+            else
+            {
+                _originalWeaponPos = transform.localPosition;
+                _originalWeaponRot = transform.localRotation;
+            }
+
+            if (audioSource == null)
+            {
+                audioSource = GetComponent<AudioSource>();
             }
         }
 
@@ -68,12 +85,12 @@ namespace LuckyDuelist.Combat
 
         private void Update()
         {
-            // Cylinder rotation
+            // Cylinder spin motion
             if (cylinderTransform != null)
             {
                 if (_isSpinning)
                 {
-                    _currentSpinSpeed = Mathf.Lerp(_currentSpinSpeed, spinRpm, Time.deltaTime * 6f);
+                    _currentSpinSpeed = (spinRpm * 360f) / 60f;
                 }
                 else
                 {
@@ -113,6 +130,25 @@ namespace LuckyDuelist.Combat
                 weaponRoot.localPosition = _originalWeaponPos + Vector3.back * Mathf.Abs(recoilKickDistance);
                 weaponRoot.localRotation = _originalWeaponRot * Quaternion.Euler(recoilKickAngle, 0f, 0f);
             }
+        }
+
+        private IEnumerator AttackBurstRoutine(int shotCount)
+        {
+            for (int i = 0; i < shotCount; i++)
+            {
+                TriggerRecoilKick();
+
+                if (audioSource != null && gunshotSfx != null)
+                {
+                    audioSource.PlayOneShot(gunshotSfx);
+                }
+
+                if (i < shotCount - 1)
+                {
+                    yield return new WaitForSeconds(burstShotInterval);
+                }
+            }
+            _recoilCoroutine = null;
         }
 
         private void OnSpinStarted(SlotSpinStartedEvent evt)
@@ -169,10 +205,23 @@ namespace LuckyDuelist.Combat
 
         private void OnTurnCommitted(TurnCommittedEvent evt)
         {
-            // If attack symbol committed, trigger recoil kick
-            if (evt.ExecutedSymbols != null && evt.ExecutedSymbols.Contains(SlotSymbol.ATTACK))
+            if (evt.ExecutedSymbols == null) return;
+
+            // Count how many ATTACK symbols were executed
+            int attackCount = 0;
+            for (int i = 0; i < evt.ExecutedSymbols.Count; i++)
             {
-                TriggerRecoilKick();
+                if (evt.ExecutedSymbols[i] == SlotSymbol.ATTACK)
+                {
+                    attackCount++;
+                }
+            }
+
+            // Trigger burst of recoil kicks corresponding to attack count
+            if (attackCount > 0)
+            {
+                if (_recoilCoroutine != null) StopCoroutine(_recoilCoroutine);
+                _recoilCoroutine = StartCoroutine(AttackBurstRoutine(attackCount));
             }
         }
     }
