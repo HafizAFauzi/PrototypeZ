@@ -2,7 +2,8 @@
     "name": "LuckyDuelist.Runtime",
     "rootNamespace": "LuckyDuelist",
     "references": [
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -56,14 +56,28 @@ namespace LuckyDuelist.Experiment
         {
             if (Instance != null && Instance != this)
             {
-                Destroy(gameObject);
+                if (Application.isPlaying)
+                    Destroy(gameObject);
+                else
+                    DestroyImmediate(gameObject);
                 return;
             }
 
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+            if (Application.isPlaying)
+            {
+                DontDestroyOnLoad(gameObject);
+            }
 
             InitializeExperiment();
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
         }
 
         private void Update()
@@ -78,6 +92,8 @@ namespace LuckyDuelist.Experiment
         /// </summary>
         public void InitializeExperiment()
         {
+            Instance = this;
+
             // 1. Resolve User ID
             if (PlayerPrefs.HasKey(PREF_KEY_USER_ID))
             {
@@ -215,6 +231,7 @@ namespace LuckyDuelist.Experiment
         /// </summary>
         public void SetGroupOverride(ExperimentGroup newGroup)
         {
+            Instance = this;
             CurrentGroup = newGroup;
             PlayerPrefs.SetInt(PREF_KEY_ASSIGNED_GROUP, (int)newGroup);
 
