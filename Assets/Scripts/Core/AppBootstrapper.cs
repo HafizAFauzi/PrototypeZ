@@ -30,6 +30,8 @@ namespace LuckyDuelist.Core
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         public static void InitializeCombatSystems()
         {
+            EnsureSlotRevolver();
+            EnsurePlayerHealth();
             EnsureEnemyHealth();
             EnsureAimStabilizer();
             EnsureFPSCameraController();
@@ -126,13 +128,36 @@ namespace LuckyDuelist.Core
             }
         }
 
+        private static void EnsureSlotRevolver()
+        {
+            if (SlotRevolverController.Instance == null)
+            {
+                GameObject go = new GameObject("[SlotRevolverController]");
+                go.AddComponent<SlotRevolverController>();
+                Object.DontDestroyOnLoad(go);
+                Debug.Log("[AppBootstrapper] Auto-spawned persistent [SlotRevolverController].");
+            }
+        }
+
+        private static void EnsurePlayerHealth()
+        {
+            if (PlayerHealth.Instance == null)
+            {
+                GameObject go = new GameObject("[PlayerHealth]");
+                go.AddComponent<PlayerHealth>();
+                Object.DontDestroyOnLoad(go);
+                Debug.Log("[AppBootstrapper] Auto-spawned persistent [PlayerHealth].");
+            }
+        }
+
         private static void EnsureEnemyHealth()
         {
             if (EnemyHealth.Instance == null)
             {
                 GameObject go = new GameObject("[EnemyHealth]");
                 go.AddComponent<EnemyHealth>();
-                Debug.Log("[AppBootstrapper] Auto-spawned [EnemyHealth].");
+                Object.DontDestroyOnLoad(go);
+                Debug.Log("[AppBootstrapper] Auto-spawned persistent [EnemyHealth].");
             }
         }
 
@@ -142,7 +167,8 @@ namespace LuckyDuelist.Core
             {
                 GameObject go = new GameObject("[AimStabilizerController]");
                 go.AddComponent<AimStabilizerController>();
-                Debug.Log("[AppBootstrapper] Auto-spawned [AimStabilizerController].");
+                Object.DontDestroyOnLoad(go);
+                Debug.Log("[AppBootstrapper] Auto-spawned persistent [AimStabilizerController].");
             }
         }
 

@@ -5,16 +5,21 @@ using LuckyDuelist.Events;
 namespace LuckyDuelist.Combat
 {
     /// <summary>
-    /// Diegetic 3D/2.5D visual controller for the Tactical Revolver held in the player's right hand.
-    /// Visualizes cylinder roll, reel stops, chamber neon emissive colors, and recoil shake.
+    /// Diegetic 2D/2.5D visual controller for the Tactical Revolver held in the player's right hand.
+    /// Supports both 2D Sprite mode (Orthographic) and 3D Mesh mode (Perspective).
+    /// Visualizes 2D/3D cylinder roll, reel stops, chamber neon colors, and recoil kick.
     /// </summary>
     public class DiegeticRevolverView : MonoBehaviour
     {
         [Header("Transform Hooks")]
-        [Tooltip("The rotating cylinder mesh/barrel containing the 3 reels")]
+        [Tooltip("The rotating cylinder sprite or mesh containing the reels")]
         [SerializeField] private Transform cylinderTransform;
         [Tooltip("Right hand weapon root for recoil kicks")]
         [SerializeField] private Transform weaponRoot;
+
+        [Header("Mode Configuration")]
+        [Tooltip("When true, recoil kicks and rotation are optimized for 2D Orthographic view")]
+        [SerializeField] private bool is2DMode = true;
 
         [Header("Spin Motion")]
         [SerializeField] private Vector3 cylinderRotationAxis = Vector3.forward;
@@ -22,13 +27,21 @@ namespace LuckyDuelist.Combat
         [SerializeField] private float smoothStopDamping = 8f;
 
         [Header("Recoil Animation")]
-        [SerializeField] private float recoilKickAngle = -6f;
-        [SerializeField] private float recoilKickDistance = -0.05f;
+        [SerializeField] private float recoilKickAngle = -8f;
+        [SerializeField] private float recoilKickDistance = 0.2f;
         [SerializeField] private float recoilRecoverySpeed = 12f;
+        [Tooltip("Delay between burst shots when multiple ATTACK symbols are executed")]
+        [SerializeField] private float burstShotInterval = 0.32f;
+        public float BurstShotInterval => burstShotInterval;
 
-        [Header("Chamber Lights (Optional)")]
+        [Header("Audio (Optional)")]
+        [SerializeField] private AudioSource audioSource;
+        [SerializeField] private AudioClip gunshotSfx;
+
+        [Header("Chamber Lights & Renderers (Optional)")]
         [SerializeField] private Light[] chamberLights;
         [SerializeField] private Renderer[] reelRenderers;
+        [SerializeField] private SpriteRenderer[] reelSpriteRenderers;
 
         private bool _isSpinning = false;
         private float _currentSpinSpeed = 0f;
@@ -42,9 +55,19 @@ namespace LuckyDuelist.Combat
                 _originalWeaponPos = weaponRoot.localPosition;
                 _originalWeaponRot = weaponRoot.localRotation;
             }
+            else
+            {
+                _originalWeaponPos = transform.localPosition;
+                _originalWeaponRot = transform.localRotation;
+            }
+
+            if (audioSource == null)
+            {
+                audioSource = GetComponent<AudioSource>();
+            }
         }
 
-        private void Start()
+        private void OnEnable()
         {
             EventBus.Subscribe<SlotSpinStartedEvent>(OnSpinStarted);
             EventBus.Subscribe<SlotReelStoppedEvent>(OnReelStopped);
@@ -53,7 +76,7 @@ namespace LuckyDuelist.Combat
             EventBus.Subscribe<AimShotFiredEvent>(OnAimShotFired);
         }
 
-        private void OnDestroy()
+        private void OnDisable()
         {
             EventBus.Unsubscribe<SlotSpinStartedEvent>(OnSpinStarted);
             EventBus.Unsubscribe<SlotReelStoppedEvent>(OnReelStopped);
@@ -64,12 +87,12 @@ namespace LuckyDuelist.Combat
 
         private void Update()
         {
-            // Cylinder rotation
+            // Cylinder spin motion
             if (cylinderTransform != null)
             {
                 if (_isSpinning)
                 {
-                    _currentSpinSpeed = Mathf.Lerp(_currentSpinSpeed, spinRpm, Time.deltaTime * 6f);
+                    _currentSpinSpeed = (spinRpm * 360f) / 60f;
                 }
                 else
                 {
@@ -91,15 +114,27 @@ namespace LuckyDuelist.Combat
         }
 
         /// <summary>
-        /// Triggers a brief physical recoil kick when the weapon fires.
+        /// Triggers a brief physical recoil kick when the weapon fires (supports both 2D and 3D).
         /// </summary>
         public void TriggerRecoilKick()
         {
             if (weaponRoot == null) return;
 
-            weaponRoot.localPosition = _originalWeaponPos + Vector3.back * Mathf.Abs(recoilKickDistance);
-            weaponRoot.localRotation = _originalWeaponRot * Quaternion.Euler(recoilKickAngle, 0f, 0f);
+            if (is2DMode)
+            {
+                // In 2D: kick downward-right on the screen plane and rotate around Z axis
+                weaponRoot.localPosition = _originalWeaponPos + new Vector3(Mathf.Abs(recoilKickDistance) * 0.35f, -Mathf.Abs(recoilKickDistance), 0f);
+                weaponRoot.localRotation = _originalWeaponRot * Quaternion.Euler(0f, 0f, recoilKickAngle);
+            }
+            else
+            {
+                // In 3D: kick backward along Z and pitch up
+                weaponRoot.localPosition = _originalWeaponPos + Vector3.back * Mathf.Abs(recoilKickDistance);
+                weaponRoot.localRotation = _originalWeaponRot * Quaternion.Euler(recoilKickAngle, 0f, 0f);
+            }
         }
+
+
 
         private void OnSpinStarted(SlotSpinStartedEvent evt)
         {
@@ -129,12 +164,21 @@ namespace LuckyDuelist.Combat
                 }
             }
 
-            // Apply color to renderer material if assigned
+            // Apply color to 3D renderer material if assigned
             if (reelRenderers != null && evt.ReelIndex >= 0 && evt.ReelIndex < reelRenderers.Length)
             {
                 if (reelRenderers[evt.ReelIndex] != null && reelRenderers[evt.ReelIndex].material != null)
                 {
                     reelRenderers[evt.ReelIndex].material.color = neonColor;
+                }
+            }
+
+            // Apply color to 2D SpriteRenderer if assigned
+            if (reelSpriteRenderers != null && evt.ReelIndex >= 0 && evt.ReelIndex < reelSpriteRenderers.Length)
+            {
+                if (reelSpriteRenderers[evt.ReelIndex] != null)
+                {
+                    reelSpriteRenderers[evt.ReelIndex].color = neonColor;
                 }
             }
         }
@@ -146,17 +190,21 @@ namespace LuckyDuelist.Combat
 
         private void OnTurnCommitted(TurnCommittedEvent evt)
         {
-            // If attack symbol committed, slight kick preparation
-            if (evt.ExecutedSymbols != null && evt.ExecutedSymbols.Contains(SlotSymbol.ATTACK))
-            {
-                TriggerRecoilKick();
-            }
+            // Do NOT trigger recoil here!
+            // Per GDD Section 2.4 & User requirement:
+            // Weapon stays steady and waits for the FPS Aim Stabilizer mini-game.
+            // Recoil kick ONLY fires when lock-on accumulates to 100% and auto-fires (handled in OnAimShotFired).
         }
 
         private void OnAimShotFired(AimShotFiredEvent evt)
         {
-            // Physical recoil on every lock-on burst shot
+            // Physical recoil kick when auto-fire triggers at 100% lock-on
             TriggerRecoilKick();
+
+            if (audioSource != null && gunshotSfx != null)
+            {
+                audioSource.PlayOneShot(gunshotSfx);
+            }
         }
     }
 }

@@ -53,15 +53,28 @@ namespace LuckyDuelist.Core
         {
             if (Instance != null && Instance != this)
             {
-                Destroy(gameObject);
+                if (Application.isPlaying)
+                    Destroy(gameObject);
+                else
+                    DestroyImmediate(gameObject);
                 return;
             }
 
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+            if (Application.isPlaying)
+            {
+                DontDestroyOnLoad(gameObject);
+            }
 
             InitializeDefaultStages();
         }
+
+#if UNITY_EDITOR
+        private void Reset()
+        {
+            InitializeDefaultStages();
+        }
+#endif
 
         private void Start()
         {
@@ -81,6 +94,10 @@ namespace LuckyDuelist.Core
 
         private void OnDestroy()
         {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
             EventBus.Unsubscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
         }
 
@@ -139,7 +156,8 @@ namespace LuckyDuelist.Core
             // Validation: Cannot enter Store if IAP Store is disabled for the participant's group
             if (newState == GameState.Store)
             {
-                if (ExperimentManager.Instance != null && !ExperimentManager.Instance.IsIAPStoreEnabled)
+                bool isStoreEnabled = ExperimentManager.Instance != null && ExperimentManager.Instance.IsIAPStoreEnabled;
+                if (!isStoreEnabled)
                 {
                     Debug.LogWarning("[GameManager] Access to Store rejected: Group does not have IAP enabled (Group A).");
                     return false;
@@ -293,6 +311,29 @@ namespace LuckyDuelist.Core
                 canDouble,
                 isFinal
             ));
+
+            if (isVictory && Application.isPlaying)
+            {
+                StartCoroutine(AutoAdvanceStageRoutine(2.5f));
+            }
+        }
+
+        private IEnumerator AutoAdvanceStageRoutine(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            if (currentState == GameState.MatchSettlement)
+            {
+                if (CurrentStageIndex < MaxStages)
+                {
+                    Debug.Log($"<color=#00FFE0>[GameManager] Auto-advancing from Stage {CurrentStageIndex} to Stage {CurrentStageIndex + 1}...</color>");
+                    ProceedToNextStage();
+                }
+                else
+                {
+                    Debug.Log("<color=#00FF66>[GameManager] All 3 stages defeated! Victory run complete!</color>");
+                    FinishRun();
+                }
+            }
         }
 
         /// <summary>

@@ -20,6 +20,7 @@ namespace LuckyDuelist.Monetization
         public string Description { get; private set; }
         public Color AccentColor { get; private set; }
         public bool IsDefaultOwned { get; private set; }
+        public Sprite IconSprite { get; set; }
 
         public CosmeticCatalogItem(
             string itemId,
