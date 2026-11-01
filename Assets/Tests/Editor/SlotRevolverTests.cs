@@ -37,6 +37,7 @@ namespace LuckyDuelist.Tests
 
             _playerHealthGo = new GameObject("TestPlayerHealth");
             _playerHealth = _playerHealthGo.AddComponent<PlayerHealth>();
+            _playerHealth.SubscribeEvents();
         }
 
         [TearDown]
@@ -130,147 +131,52 @@ namespace LuckyDuelist.Tests
             Assert.AreEqual(3, _controller.CurrentReelSymbols.Length);
         }
 
-        #endregion
-
-        #region 2 Hold Slots Inventory Tests
-
         [Test]
-        public void HoldSlots_CanHoldUpToTwoSymbols()
+        public void ReelSpinner_CommitTurn_ExecutesAllThreeSymbolsDirectly()
         {
             _controller.SpinCylinderInstant();
+            Assert.IsTrue(_controller.CanCommitTurn());
 
-            Assert.AreEqual(0, _controller.HeldCount);
-            Assert.IsTrue(_controller.CanHoldMore);
-
-            // Hold Reel 0
-            bool held0 = _controller.TryHoldReel(0);
-            Assert.IsTrue(held0);
-            Assert.AreEqual(1, _controller.HeldCount);
-            Assert.IsTrue(_controller.IsReelHeld(0));
-
-            // Hold Reel 1
-            bool held1 = _controller.TryHoldReel(1);
-            Assert.IsTrue(held1);
-            Assert.AreEqual(2, _controller.HeldCount);
-            Assert.IsTrue(_controller.IsReelHeld(1));
-            Assert.IsFalse(_controller.CanHoldMore);
-        }
-
-        [Test]
-        public void HoldSlots_RuleMinimal1SymbolExecuted_BlocksHoldingAllThree()
-        {
-            _controller.SpinCylinderInstant();
-
-            _controller.TryHoldReel(0);
-            _controller.TryHoldReel(1);
-
-            // Holding the 3rd reel would leave 0 symbols to execute this turn!
-            // Must be rejected by rule: "Minimal 1 simbol harus dieksekusi pada giliran aktif"
-            bool held2 = _controller.TryHoldReel(2);
-            Assert.IsFalse(held2, "Cannot hold 3rd reel: leaves 0 executable symbols and exceeds max 2 slots");
-            Assert.AreEqual(2, _controller.HeldCount);
-            Assert.IsFalse(_controller.IsReelHeld(2));
-        }
-
-        [Test]
-        public void HoldSlots_ReleaseHoldSlot_FreesSlotAndUnmarksReel()
-        {
-            _controller.SpinCylinderInstant();
-            _controller.TryHoldReel(0);
-
-            Assert.AreEqual(1, _controller.HeldCount);
-            Assert.IsTrue(_controller.IsReelHeld(0));
-
-            bool released = _controller.TryReleaseHold(0);
-            Assert.IsTrue(released);
-            Assert.AreEqual(0, _controller.HeldCount);
-            Assert.IsFalse(_controller.IsReelHeld(0));
-            Assert.IsNull(_controller.GetHoldSlot(0));
-        }
-
-        [Test]
-        public void HoldSlots_ToggleReel_SwitchesStateCleanly()
-        {
-            _controller.SpinCylinderInstant();
-
-            // Toggle on
-            _controller.ToggleHoldReel(1);
-            Assert.IsTrue(_controller.IsReelHeld(1));
-            Assert.AreEqual(1, _controller.HeldCount);
-
-            // Toggle off
-            _controller.ToggleHoldReel(1);
-            Assert.IsFalse(_controller.IsReelHeld(1));
-            Assert.AreEqual(0, _controller.HeldCount);
-        }
-
-        [Test]
-        public void HoldSlots_PreservedAcrossTurnsOnCommit()
-        {
-            _controller.SpinCylinderInstant();
-            SlotSymbol heldSymbol = _controller.CurrentReelSymbols[0];
-
-            _controller.TryHoldReel(0);
-            Assert.AreEqual(heldSymbol, _controller.GetHoldSlot(0));
-
-            // Commit turn
             bool committed = _controller.CommitTurn(out List<SlotSymbol> actions);
             Assert.IsTrue(committed);
-            Assert.AreEqual(2, actions.Count, "2 unheld reels executed");
-
-            // Verify held symbol is preserved for next turn
-            Assert.AreEqual(1, _controller.HeldCount);
-            Assert.AreEqual(heldSymbol, _controller.GetHoldSlot(0));
+            Assert.AreEqual(3, actions.Count, "All 3 reels are directly executed on commit");
             Assert.AreEqual(2, _controller.TurnNumber);
             Assert.IsFalse(_controller.HasSpunThisTurn);
         }
 
         #endregion
 
-        #region Single Reel Re-Spin & Feature Gating Tests
+        #region Full 3-Reel Re-Spin & Feature Gating Tests
 
         [Test]
-        public void RespinReel_GroupA_AllowsOneRespinPerTurn()
+        public void RespinAllReels_GroupA_AllowsOneRespinPerTurn()
         {
             _experimentManager.SetGroupOverride(ExperimentGroup.GroupA_DominantAds);
             _controller.SpinCylinderInstant();
 
-            Assert.IsTrue(_controller.CanRespinReel(0));
+            Assert.IsTrue(_controller.CanRespin());
             Assert.IsFalse(_controller.HasUsedRespinThisTurn);
 
-            bool respun = _controller.RespinReel(0, isAdWatched: true);
-            Assert.IsTrue(respun);
+            bool respunEventReceived = false;
+            EventBus.Subscribe<SlotRespinTriggeredEvent>(evt => respunEventReceived = true);
+
+            _controller.RespinAllReelsInstant(isAdWatched: true);
+            Assert.IsTrue(respunEventReceived);
             Assert.IsTrue(_controller.HasUsedRespinThisTurn);
+            Assert.AreEqual(3, _controller.CurrentReelSymbols.Length);
 
             // Second respin in same turn must be rejected
-            Assert.IsFalse(_controller.CanRespinReel(1));
-            bool secondRespin = _controller.RespinReel(1, isAdWatched: true);
-            Assert.IsFalse(secondRespin);
+            Assert.IsFalse(_controller.CanRespin());
         }
 
         [Test]
-        public void RespinReel_GroupB_DisallowsRespinViaAd()
+        public void RespinAllReels_GroupB_DisallowsRespinViaAd()
         {
             _experimentManager.SetGroupOverride(ExperimentGroup.GroupB_DominantIAP);
             _controller.SpinCylinderInstant();
 
-            // Group B has ads disabled, so CanRespinReel must return false
-            Assert.IsFalse(_controller.CanRespinReel(0));
-            bool attempted = _controller.RespinReel(0, isAdWatched: true);
-            Assert.IsFalse(attempted);
-        }
-
-        [Test]
-        public void RespinReel_CannotRespinHeldReel()
-        {
-            _experimentManager.SetGroupOverride(ExperimentGroup.GroupA_DominantAds);
-            _controller.SpinCylinderInstant();
-
-            _controller.TryHoldReel(0);
-            Assert.IsTrue(_controller.IsReelHeld(0));
-
-            // Cannot respin a reel that is held
-            Assert.IsFalse(_controller.CanRespinReel(0));
+            // Group B has ads disabled, so CanRespin must return false
+            Assert.IsFalse(_controller.CanRespin());
         }
 
         #endregion
@@ -284,7 +190,7 @@ namespace LuckyDuelist.Tests
 
             // Set all weights to 0 except Wild
             _controller.SetWeights(0, 0, 0, 0, 100);
-            _controller.RespinReel(0, isAdWatched: false);
+            _controller.RespinAllReelsInstant(isAdWatched: false);
 
             Assert.AreEqual(SlotSymbol.WILD_JOKER, _controller.CurrentReelSymbols[0]);
             Assert.IsTrue(_controller.HasPendingWildJoker(out int reelIdx));
@@ -339,7 +245,7 @@ namespace LuckyDuelist.Tests
 
             // Commit a turn containing 2 HEAL symbols
             var symbols = new List<SlotSymbol> { SlotSymbol.HEAL, SlotSymbol.HEAL, SlotSymbol.ATTACK };
-            EventBus.Publish(new TurnCommittedEvent(1, symbols, new SlotSymbol?[2]));
+            EventBus.Publish(new TurnCommittedEvent(1, symbols));
 
             // 50 + 20*2 = 90
             Assert.AreEqual(90, _playerHealth.CurrentHealth);
