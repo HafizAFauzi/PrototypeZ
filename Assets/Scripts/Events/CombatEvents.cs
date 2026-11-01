@@ -67,17 +67,19 @@ namespace LuckyDuelist.Events
     }
 
     /// <summary>
-    /// Dispatched when player commits their turn (locking in all 3 reels for combat actions).
+    /// Dispatched when player commits their turn (locking in reels for combat actions).
     /// </summary>
     public struct TurnCommittedEvent
     {
         public int TurnNumber;
         public List<SlotSymbol> ExecutedSymbols;
+        public SlotSymbol?[] PreservedHoldSlots;
 
-        public TurnCommittedEvent(int turnNumber, List<SlotSymbol> executedSymbols)
+        public TurnCommittedEvent(int turnNumber, List<SlotSymbol> executedSymbols, SlotSymbol?[] preservedHoldSlots = null)
         {
             TurnNumber = turnNumber;
             ExecutedSymbols = executedSymbols;
+            PreservedHoldSlots = preservedHoldSlots;
         }
     }
 

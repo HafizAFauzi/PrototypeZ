@@ -32,6 +32,7 @@ namespace LuckyDuelist.Combat
         [SerializeField] private float recoilRecoverySpeed = 12f;
         [Tooltip("Delay between burst shots when multiple ATTACK symbols are executed")]
         [SerializeField] private float burstShotInterval = 0.32f;
+        public float BurstShotInterval => burstShotInterval;
 
         [Header("Audio (Optional)")]
         [SerializeField] private AudioSource audioSource;
@@ -46,7 +47,6 @@ namespace LuckyDuelist.Combat
         private float _currentSpinSpeed = 0f;
         private Vector3 _originalWeaponPos;
         private Quaternion _originalWeaponRot;
-        private Coroutine _recoilCoroutine;
 
         private void Awake()
         {
@@ -134,24 +134,7 @@ namespace LuckyDuelist.Combat
             }
         }
 
-        private IEnumerator AttackBurstRoutine(int shotCount)
-        {
-            for (int i = 0; i < shotCount; i++)
-            {
-                TriggerRecoilKick();
 
-                if (audioSource != null && gunshotSfx != null)
-                {
-                    audioSource.PlayOneShot(gunshotSfx);
-                }
-
-                if (i < shotCount - 1)
-                {
-                    yield return new WaitForSeconds(burstShotInterval);
-                }
-            }
-            _recoilCoroutine = null;
-        }
 
         private void OnSpinStarted(SlotSpinStartedEvent evt)
         {
@@ -207,30 +190,21 @@ namespace LuckyDuelist.Combat
 
         private void OnTurnCommitted(TurnCommittedEvent evt)
         {
-            if (evt.ExecutedSymbols == null) return;
-
-            // Count how many ATTACK symbols were executed
-            int attackCount = 0;
-            for (int i = 0; i < evt.ExecutedSymbols.Count; i++)
-            {
-                if (evt.ExecutedSymbols[i] == SlotSymbol.ATTACK)
-                {
-                    attackCount++;
-                }
-            }
-
-            // Trigger burst of recoil kicks corresponding to attack count
-            if (attackCount > 0)
-            {
-                if (_recoilCoroutine != null) StopCoroutine(_recoilCoroutine);
-                _recoilCoroutine = StartCoroutine(AttackBurstRoutine(attackCount));
-            }
+            // Do NOT trigger recoil here!
+            // Per GDD Section 2.4 & User requirement:
+            // Weapon stays steady and waits for the FPS Aim Stabilizer mini-game.
+            // Recoil kick ONLY fires when lock-on accumulates to 100% and auto-fires (handled in OnAimShotFired).
         }
 
         private void OnAimShotFired(AimShotFiredEvent evt)
         {
-            // Physical recoil on every lock-on burst shot
+            // Physical recoil kick when auto-fire triggers at 100% lock-on
             TriggerRecoilKick();
+
+            if (audioSource != null && gunshotSfx != null)
+            {
+                audioSource.PlayOneShot(gunshotSfx);
+            }
         }
     }
 }

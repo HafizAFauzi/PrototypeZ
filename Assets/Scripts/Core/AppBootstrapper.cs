@@ -132,7 +132,8 @@ namespace LuckyDuelist.Core
             {
                 GameObject go = new GameObject("[EnemyHealth]");
                 go.AddComponent<EnemyHealth>();
-                Debug.Log("[AppBootstrapper] Auto-spawned [EnemyHealth].");
+                Object.DontDestroyOnLoad(go);
+                Debug.Log("[AppBootstrapper] Auto-spawned persistent [EnemyHealth].");
             }
         }
 
@@ -142,7 +143,8 @@ namespace LuckyDuelist.Core
             {
                 GameObject go = new GameObject("[AimStabilizerController]");
                 go.AddComponent<AimStabilizerController>();
-                Debug.Log("[AppBootstrapper] Auto-spawned [AimStabilizerController].");
+                Object.DontDestroyOnLoad(go);
+                Debug.Log("[AppBootstrapper] Auto-spawned persistent [AimStabilizerController].");
             }
         }
 

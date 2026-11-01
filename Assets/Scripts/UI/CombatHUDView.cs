@@ -76,6 +76,8 @@ namespace LuckyDuelist.UI
             EventBus.Subscribe<TurnCommittedEvent>(OnTurnCommitted);
             EventBus.Subscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
             EventBus.Subscribe<WildJokerResolvedEvent>(OnWildJokerResolved);
+            EventBus.Subscribe<AimStabilizerStartedEvent>(OnAimStabilizerStarted);
+            EventBus.Subscribe<AimSequenceCompletedEvent>(OnAimSequenceCompleted);
         }
 
         private void OnDisable()
@@ -88,6 +90,8 @@ namespace LuckyDuelist.UI
             EventBus.Unsubscribe<TurnCommittedEvent>(OnTurnCommitted);
             EventBus.Unsubscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
             EventBus.Unsubscribe<WildJokerResolvedEvent>(OnWildJokerResolved);
+            EventBus.Unsubscribe<AimStabilizerStartedEvent>(OnAimStabilizerStarted);
+            EventBus.Unsubscribe<AimSequenceCompletedEvent>(OnAimSequenceCompleted);
         }
 
         private void Start()
@@ -169,6 +173,84 @@ namespace LuckyDuelist.UI
             RefreshHUD();
         }
 
+        private void OnAimStabilizerStarted(AimStabilizerStartedEvent evt)
+        {
+            // Pause HUD action buttons while aiming mini-game is in progress
+            if (spinOrCommitButton != null) spinOrCommitButton.interactable = false;
+            if (spinOrCommitText != null)
+            {
+                if (evt.TotalBursts > 1)
+                {
+                    spinOrCommitText.text = $"BIDIK SLOT {evt.CurrentBurstIndex}/{evt.TotalBursts}";
+                }
+                else
+                {
+                    spinOrCommitText.text = "BIDIK TARGET...";
+                }
+            }
+            if (respinAdButton != null) respinAdButton.interactable = false;
+
+            HighlightActiveAttackReel(evt.CurrentBurstIndex);
+        }
+
+        private void HighlightActiveAttackReel(int burstNumber)
+        {
+            var controller = SlotRevolverController.Instance;
+            if (controller == null || reelCardBorders == null) return;
+
+            // Find the N-th ATTACK reel index (0, 1, or 2)
+            int attackFound = 0;
+            int activeReelIndex = -1;
+            for (int i = 0; i < 3; i++)
+            {
+                if (controller.CurrentReelSymbols[i] == SlotSymbol.ATTACK)
+                {
+                    attackFound++;
+                    if (attackFound == burstNumber)
+                    {
+                        activeReelIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            for (int i = 0; i < 3 && i < reelCardBorders.Length; i++)
+            {
+                if (reelCardBorders[i] == null) continue;
+
+                if (i == activeReelIndex)
+                {
+                    // Active attack reel glows bright neon yellow/white with scale pulse
+                    reelCardBorders[i].color = new Color(1f, 1f, 0.35f, 1f);
+                    reelCardBorders[i].transform.localScale = new Vector3(1.1f, 1.1f, 1f);
+                }
+                else
+                {
+                    // Non-active reels are dimmed to keep focus on the active slot
+                    Color normalColor = SlotSymbolMetadata.GetColor(controller.CurrentReelSymbols[i]);
+                    reelCardBorders[i].color = new Color(normalColor.r * 0.45f, normalColor.g * 0.45f, normalColor.b * 0.45f, 0.7f);
+                    reelCardBorders[i].transform.localScale = Vector3.one;
+                }
+            }
+        }
+
+        private void OnAimSequenceCompleted(AimSequenceCompletedEvent evt)
+        {
+            // Reset reel borders scale and color
+            if (reelCardBorders != null)
+            {
+                for (int i = 0; i < reelCardBorders.Length; i++)
+                {
+                    if (reelCardBorders[i] != null)
+                    {
+                        reelCardBorders[i].transform.localScale = Vector3.one;
+                    }
+                }
+            }
+            // Resume and refresh HUD after all burst shots complete
+            RefreshHUD();
+        }
+
         private void OnExperimentGroupAssigned(ExperimentGroupAssignedEvent evt)
         {
             RefreshExperimentGatedUI();
@@ -220,6 +302,15 @@ namespace LuckyDuelist.UI
         {
             var controller = SlotRevolverController.Instance;
             if (controller == null) return;
+
+            // Pause if Aim Stabilizer is actively running
+            if (LuckyDuelist.Combat.AimStabilizerController.Instance != null && LuckyDuelist.Combat.AimStabilizerController.Instance.IsAiming)
+            {
+                if (spinOrCommitButton != null) spinOrCommitButton.interactable = false;
+                if (spinOrCommitText != null) spinOrCommitText.text = "BIDIK TARGET...";
+                if (respinAdButton != null) respinAdButton.interactable = false;
+                return;
+            }
 
             if (controller.IsSpinning)
             {
