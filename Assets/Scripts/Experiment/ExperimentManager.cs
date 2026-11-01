@@ -264,6 +264,7 @@ namespace LuckyDuelist.Experiment
         /// <summary>
         /// Resets all local experiment data to simulate a fresh participant installation.
         /// </summary>
+        [ContextMenu("Reset Experiment Data (New Participant)")]
         public void ResetExperimentData()
         {
             PlayerPrefs.DeleteKey(PREF_KEY_USER_ID);

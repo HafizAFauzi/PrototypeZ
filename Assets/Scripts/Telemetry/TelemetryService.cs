@@ -620,6 +620,7 @@ namespace LuckyDuelist.Telemetry
         /// <summary>
         /// Clears all pending offline logs from disk.
         /// </summary>
+        [ContextMenu("Clear Offline Pending Logs (Reset to 0)")]
         public void ClearPendingLogs()
         {
             try
