@@ -42,6 +42,10 @@ namespace LuckyDuelist.Monetization
         [SerializeField] private int reviveAdCount = 0;
         [SerializeField] private int doubleGoldAdCount = 0;
 
+        [Header("Audio & Feedback")]
+        [SerializeField] private AudioClip adRewardChimeSfx;
+        [SerializeField] private AudioSource audioSource;
+
         // UI References (dynamically constructed if not bound)
         private Canvas _adCanvas;
         private GameObject _overlayRoot;
@@ -69,6 +73,29 @@ namespace LuckyDuelist.Monetization
             "<b>[ SHADOW-BLADE NANO-ALLOY ]</b>\n<i>Tanto knives forged with monomolecular cutting edges.</i>\n'Clang with perfection. Deflect any bullet.'"
         };
 
+        [Header("Targets (Optional direct binding)")]
+        [SerializeField] private SlotRevolverController targetSlot;
+        [SerializeField] private GameManager targetGameManager;
+        [SerializeField] private PlayerHealth targetPlayerHealth;
+
+        public SlotRevolverController TargetSlot
+        {
+            get => targetSlot != null ? targetSlot : SlotRevolverController.Instance;
+            set => targetSlot = value;
+        }
+
+        public GameManager TargetGameManager
+        {
+            get => targetGameManager != null ? targetGameManager : GameManager.Instance;
+            set => targetGameManager = value;
+        }
+
+        public PlayerHealth TargetPlayerHealth
+        {
+            get => targetPlayerHealth != null ? targetPlayerHealth : PlayerHealth.Instance;
+            set => targetPlayerHealth = value;
+        }
+
         #region Public Properties
         public bool IsPlayingAd => isPlayingAd;
         public float RemainingCountdown => remainingCountdown;
@@ -84,14 +111,17 @@ namespace LuckyDuelist.Monetization
 
         private void Awake()
         {
-            if (Instance != null && Instance != this)
+            if (Application.isPlaying && Instance != null && Instance != this)
             {
                 Destroy(gameObject);
                 return;
             }
 
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+            if (Application.isPlaying)
+            {
+                DontDestroyOnLoad(gameObject);
+            }
 
             if (autoConstructUI)
             {
@@ -157,14 +187,14 @@ namespace LuckyDuelist.Monetization
         }
 
         /// <summary>
-        /// Convenience method: Displays ad for tactical 1-reel cylinder re-spin.
+        /// Convenience method: Displays ad for tactical cylinder re-spin.
         /// </summary>
-        public bool PlayRespinAd(int reelIndex, Action onSuccess = null)
+        public bool PlayRespinAd(int reelIndex = -1, Action onSuccess = null)
         {
-            var controller = SlotRevolverController.Instance;
-            if (controller == null || !controller.CanRespinReel(reelIndex))
+            var controller = TargetSlot;
+            if (controller == null || !controller.CanRespin())
             {
-                Debug.LogWarning($"[DummyAdPlayer] Cannot play respin ad: Reel {reelIndex} cannot be respun.");
+                Debug.LogWarning("[DummyAdPlayer] Cannot play respin ad: Re-spin is not currently allowed.");
                 return false;
             }
 
@@ -172,9 +202,16 @@ namespace LuckyDuelist.Monetization
                 AdPlacementType.RespinSlot,
                 onRewardGranted: () =>
                 {
-                    if (SlotRevolverController.Instance != null)
+                    if (TargetSlot != null)
                     {
-                        SlotRevolverController.Instance.RespinReel(reelIndex, isAdWatched: true);
+                        if (Application.isPlaying)
+                        {
+                            TargetSlot.RespinAllReels(isAdWatched: true);
+                        }
+                        else
+                        {
+                            TargetSlot.RespinAllReelsInstant(isAdWatched: true);
+                        }
                     }
                     onSuccess?.Invoke();
                 }
@@ -190,9 +227,9 @@ namespace LuckyDuelist.Monetization
                 AdPlacementType.ReviveMatch,
                 onRewardGranted: () =>
                 {
-                    if (GameManager.Instance != null)
+                    if (TargetGameManager != null)
                     {
-                        GameManager.Instance.RevivePlayer();
+                        TargetGameManager.RevivePlayer();
                     }
                     onSuccess?.Invoke();
                 }
@@ -208,9 +245,9 @@ namespace LuckyDuelist.Monetization
                 AdPlacementType.DoubleGold,
                 onRewardGranted: () =>
                 {
-                    if (GameManager.Instance != null)
+                    if (TargetGameManager != null)
                     {
-                        GameManager.Instance.ClaimSettlementReward(doubleRewardWithAd: true);
+                        TargetGameManager.ClaimSettlementReward(doubleRewardWithAd: true);
                     }
                     onSuccess?.Invoke();
                 }
@@ -359,6 +396,11 @@ namespace LuckyDuelist.Monetization
             ));
 
             Debug.Log($"<color=green>[DummyAdPlayer] Ad impression finalized! Total impressions: {totalAdImpressions} | Total Ad Revenue: Rp {totalAdRevenue:N0}</color>");
+
+            if (audioSource != null && adRewardChimeSfx != null)
+            {
+                audioSource.PlayOneShot(adRewardChimeSfx);
+            }
         }
 
         public void ClaimRewardAndDismiss()
@@ -414,8 +456,39 @@ namespace LuckyDuelist.Monetization
 
         #region Fullscreen Overlay Canvas Construction
 
+        private static Font GetDefaultFont()
+        {
+            try
+            {
+                Font f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                if (f != null) return f;
+            }
+            catch { }
+
+            try
+            {
+                Font[] allFonts = Resources.FindObjectsOfTypeAll<Font>();
+                if (allFonts != null && allFonts.Length > 0) return allFonts[0];
+            }
+            catch { }
+
+            try
+            {
+                return Font.CreateDynamicFontFromOSFont("Arial", 16);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public void EnsureOverlayConstructed()
         {
+            if (audioSource == null)
+            {
+                audioSource = GetComponent<AudioSource>() ?? gameObject.AddComponent<AudioSource>();
+            }
+
             if (_overlayRoot != null) return;
 
             // 1. Root Canvas (High Sorting Order 500)
@@ -433,7 +506,7 @@ namespace LuckyDuelist.Monetization
 
             canvasGo.AddComponent<GraphicRaycaster>();
 
-            Font defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf") ?? Font.CreateDynamicFontFromOSFont("Arial", 16);
+            Font defaultFont = GetDefaultFont();
 
             // 2. Fullscreen Blackout Dimmer
             _overlayRoot = new GameObject("Ad_Overlay_Panel");
