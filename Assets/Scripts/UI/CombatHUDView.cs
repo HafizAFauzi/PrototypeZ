@@ -17,7 +17,7 @@ namespace LuckyDuelist.UI
     /// 3. Main Action Button ("PUTAR SILINDER" / "EKSEKUSI GILIRAN").
     /// 4. Full 3-Reel Re-spin via Rewarded Ad Button (Gated by ExperimentGroup: Group A & C visible, Group B hidden).
     /// 5. Defense Prompt Badges ([Q: HINDAR] | [E: PARRY PISAU]).
-    /// 6. Wild Joker Selection Modal.
+    /// 6. Wild Joker Selection Modal (Manual Inspector binding OR automatic runtime fallback popup).
     ///
     /// Supports TextMeshPro (TMP_Text) for crisp UI and drag-and-drop from the Inspector.
     /// </summary>
@@ -46,7 +46,7 @@ namespace LuckyDuelist.UI
         [SerializeField] private GameObject defensePromptRoot;
         [SerializeField] private TMP_Text defensePromptText;
 
-        [Header("Wild Joker Modal")]
+        [Header("Wild Joker Modal (Optional - Auto-generates if None)")]
         [SerializeField] private GameObject wildJokerModal;
         [SerializeField] private Button wildAttackBtn;
         [SerializeField] private Button wildMarkBtn;
@@ -92,6 +92,17 @@ namespace LuckyDuelist.UI
 
         private void Start()
         {
+            // Wire Wild Joker button listeners if assigned in Inspector
+            if (wildAttackBtn != null) wildAttackBtn.onClick.AddListener(OnWildAttackClicked);
+            if (wildMarkBtn != null) wildMarkBtn.onClick.AddListener(OnWildMarkClicked);
+            if (wildHealBtn != null) wildHealBtn.onClick.AddListener(OnWildHealClicked);
+            if (wildCounterBtn != null) wildCounterBtn.onClick.AddListener(OnWildCounterClicked);
+
+            if (wildJokerModal != null)
+            {
+                wildJokerModal.SetActive(false);
+            }
+
             RefreshExperimentGatedUI();
             RefreshHUD();
         }
@@ -337,7 +348,7 @@ namespace LuckyDuelist.UI
 
         #endregion
 
-        #region Wild Joker Modal
+        #region Wild Joker Modal Logic
 
         private void CheckAndOpenWildJokerModal()
         {
@@ -347,6 +358,19 @@ namespace LuckyDuelist.UI
             if (controller.HasPendingWildJoker(out int reelIndex))
             {
                 _pendingWildReelIndex = reelIndex;
+
+                // Auto-create popup modal if not wired in Inspector
+                if (wildJokerModal == null)
+                {
+                    Canvas canvas = hudCanvas != null ? hudCanvas : GetComponentInParent<Canvas>();
+                    if (canvas == null) canvas = FindObjectOfType<Canvas>();
+
+                    if (canvas != null)
+                    {
+                        BuildWildJokerModal(canvas.transform as RectTransform);
+                    }
+                }
+
                 if (wildJokerModal != null)
                 {
                     wildJokerModal.SetActive(true);
@@ -360,7 +384,17 @@ namespace LuckyDuelist.UI
             {
                 SlotRevolverController.Instance.ResolveWildJoker(_pendingWildReelIndex, chosenSymbol);
             }
+            if (wildJokerModal != null)
+            {
+                wildJokerModal.SetActive(false);
+            }
         }
+
+        // Public click helpers (can be assigned directly in Inspector Button OnClick)
+        public void OnWildAttackClicked() => SelectWildChoice(SlotSymbol.ATTACK);
+        public void OnWildMarkClicked() => SelectWildChoice(SlotSymbol.MARK);
+        public void OnWildHealClicked() => SelectWildChoice(SlotSymbol.HEAL);
+        public void OnWildCounterClicked() => SelectWildChoice(SlotSymbol.COUNTER_SHARPEN);
 
         #endregion
 
@@ -594,11 +628,13 @@ namespace LuckyDuelist.UI
 
         private void BuildWildJokerModal(RectTransform parent)
         {
+            if (parent == null) return;
+
             wildJokerModal = new GameObject("WildJoker_Modal");
             var modalRect = wildJokerModal.AddComponent<RectTransform>();
             modalRect.SetParent(parent, false);
-            modalRect.anchorMin = new Vector2(0.1f, 0.25f);
-            modalRect.anchorMax = new Vector2(0.9f, 0.75f);
+            modalRect.anchorMin = new Vector2(0.3f, 0.35f);
+            modalRect.anchorMax = new Vector2(0.7f, 0.65f);
             modalRect.offsetMin = Vector2.zero;
             modalRect.offsetMax = Vector2.zero;
 
@@ -614,11 +650,11 @@ namespace LuckyDuelist.UI
             titleRect.anchorMin = new Vector2(0.05f, 0.75f);
             titleRect.anchorMax = new Vector2(0.95f, 0.95f);
             var titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
-            titleTmp.fontSize = 15;
+            titleTmp.fontSize = 18;
             titleTmp.fontStyle = FontStyles.Bold;
             titleTmp.alignment = TextAlignmentOptions.Center;
             titleTmp.color = new Color(0.95f, 0.35f, 1f);
-            titleTmp.text = "⭐ WILD JOKER AKTIF ⭐\nPilih Simbol:";
+            titleTmp.text = "⭐ WILD JOKER AKTIF ⭐\nPilih Simbol Pengganti:";
 
             // 4 Option Buttons (Attack, Mark, Heal, Counter)
             SlotSymbol[] choices = new[] { SlotSymbol.ATTACK, SlotSymbol.MARK, SlotSymbol.HEAL, SlotSymbol.COUNTER_SHARPEN };
@@ -642,7 +678,7 @@ namespace LuckyDuelist.UI
                 bTmp.transform.SetParent(btnRect, false);
                 bTmp.rectTransform.anchorMin = Vector2.zero;
                 bTmp.rectTransform.anchorMax = Vector2.one;
-                bTmp.fontSize = 13;
+                bTmp.fontSize = 14;
                 bTmp.fontStyle = FontStyles.Bold;
                 bTmp.alignment = TextAlignmentOptions.Center;
                 bTmp.color = Color.black;
