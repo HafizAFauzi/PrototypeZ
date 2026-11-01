@@ -23,6 +23,9 @@ namespace LuckyDuelist.Combat
         [SerializeField] private int stageNumber = 1;
         [SerializeField] private bool isMarked = false;
 
+        private SpriteRenderer _spriteRenderer;
+        private Vector3 _initialScale = Vector3.one;
+
         public int MaxHealth => maxHealth;
         public int CurrentHealth => currentHealth;
         public float HealthPercent => maxHealth > 0 ? (float)currentHealth / maxHealth : 0f;
@@ -35,11 +38,15 @@ namespace LuckyDuelist.Combat
         {
             if (Instance != null && Instance != this)
             {
-                Destroy(gameObject);
+                if (Application.isPlaying) Destroy(this);
+                else DestroyImmediate(this);
                 return;
             }
             Instance = this;
             currentHealth = maxHealth;
+            _spriteRenderer = GetComponent<SpriteRenderer>();
+            _initialScale = transform.localScale;
+            if (_initialScale == Vector3.zero) _initialScale = Vector3.one;
         }
 
         private void Start()
@@ -143,6 +150,39 @@ namespace LuckyDuelist.Combat
 
             EventBus.Publish(new EnemyHealthChangedEvent(currentHealth, maxHealth, 0, false, "StageReset"));
             EventBus.Publish(new EnemyMarkStatusChangedEvent(false, "StageReset"));
+
+            // Apply Dynamic Cyberpunk Tint & Scale per stage
+            if (_spriteRenderer == null) _spriteRenderer = GetComponent<SpriteRenderer>();
+            if (_initialScale == Vector3.one && transform.localScale != Vector3.one && transform.localScale != Vector3.zero)
+            {
+                _initialScale = transform.localScale;
+            }
+
+            if (_spriteRenderer != null)
+            {
+                switch (stageNum)
+                {
+                    case 1:
+                        _spriteRenderer.color = Color.white;
+                        transform.localScale = _initialScale;
+                        break;
+                    case 2:
+                        // Chrome Gambler: Golden Chrome tint
+                        _spriteRenderer.color = new Color(1f, 0.84f, 0.25f, 1f);
+                        transform.localScale = _initialScale;
+                        break;
+                    case 3:
+                        // Cyber Baron Boss: Crimson Red tint & enlarged scale (1.18x)
+                        _spriteRenderer.color = new Color(0.95f, 0.15f, 0.35f, 1f);
+                        transform.localScale = _initialScale * 1.18f;
+                        break;
+                    default:
+                        _spriteRenderer.color = Color.white;
+                        transform.localScale = _initialScale;
+                        break;
+                }
+            }
+
             Debug.Log($"<color=#00FFE0><b>[EnemyHealth]</b></color> Reset Musuh Stage {stageNumber}: <b>{enemyName}</b> | HP Penuh: <color=#00FF66><b>{currentHealth}/{maxHealth} HP</b></color> {GetHpBarString(currentHealth, maxHealth, 10)} (100%)");
         }
 

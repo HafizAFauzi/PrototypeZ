@@ -311,6 +311,29 @@ namespace LuckyDuelist.Core
                 canDouble,
                 isFinal
             ));
+
+            if (isVictory && Application.isPlaying)
+            {
+                StartCoroutine(AutoAdvanceStageRoutine(2.5f));
+            }
+        }
+
+        private IEnumerator AutoAdvanceStageRoutine(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            if (currentState == GameState.MatchSettlement)
+            {
+                if (CurrentStageIndex < MaxStages)
+                {
+                    Debug.Log($"<color=#00FFE0>[GameManager] Auto-advancing from Stage {CurrentStageIndex} to Stage {CurrentStageIndex + 1}...</color>");
+                    ProceedToNextStage();
+                }
+                else
+                {
+                    Debug.Log("<color=#00FF66>[GameManager] All 3 stages defeated! Victory run complete!</color>");
+                    FinishRun();
+                }
+            }
         }
 
         /// <summary>

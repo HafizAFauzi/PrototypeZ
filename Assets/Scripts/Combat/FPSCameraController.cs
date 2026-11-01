@@ -69,18 +69,32 @@ namespace LuckyDuelist.Combat
         {
             if (Instance != null && Instance != this)
             {
-                Destroy(gameObject);
+                if (Application.isPlaying) Destroy(this);
+                else DestroyImmediate(this);
                 return;
             }
             Instance = this;
 
             EnsureCameraAssigned();
+            if (targetCameraTransform != null)
+            {
+                _baseLocalPosition = targetCameraTransform.localPosition;
+                _baseLocalRotation = targetCameraTransform.localRotation;
+            }
+        }
+
+        private void OnEnable()
+        {
+            EventBus.Subscribe<AimShotFiredEvent>(OnAimShotFired);
+        }
+
+        private void OnDisable()
+        {
+            EventBus.Unsubscribe<AimShotFiredEvent>(OnAimShotFired);
         }
 
         private void Start()
         {
-            EventBus.Subscribe<AimShotFiredEvent>(OnAimShotFired);
-
             if (targetCameraTransform != null)
             {
                 _baseLocalPosition = targetCameraTransform.localPosition;
@@ -249,8 +263,11 @@ namespace LuckyDuelist.Combat
                 );
             }
 
+            // 4. Recoil Y-kick in 2D orthographic
+            Vector3 recoilOffset = new Vector3(0f, -_currentRecoilPitch * 0.04f, 0f);
+
             // Combine Position
-            targetCameraTransform.localPosition = _baseLocalPosition + breathingOffset + dodgeOffset + shakeOffset;
+            targetCameraTransform.localPosition = _baseLocalPosition + breathingOffset + dodgeOffset + shakeOffset + recoilOffset;
 
             // Combine Rotation: Pitch (Recoil) + Roll (Dodge)
             Quaternion recoilRotation = Quaternion.Euler(-_currentRecoilPitch, 0f, 0f);

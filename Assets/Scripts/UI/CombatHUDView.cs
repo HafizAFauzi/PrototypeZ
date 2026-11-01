@@ -83,6 +83,8 @@ namespace LuckyDuelist.UI
             EventBus.Subscribe<CounterBuffStatusChangedEvent>(OnCounterBuffStatusChanged);
             EventBus.Subscribe<AimStabilizerStartedEvent>(OnAimStabilizerStarted);
             EventBus.Subscribe<AimSequenceCompletedEvent>(OnAimSequenceCompleted);
+            EventBus.Subscribe<StageStartedEvent>(OnStageStarted);
+            EventBus.Subscribe<StageCompletedEvent>(OnStageCompleted);
 
             RefreshExperimentGatedUI();
             RefreshHUD();
@@ -105,6 +107,8 @@ namespace LuckyDuelist.UI
             EventBus.Unsubscribe<CounterBuffStatusChangedEvent>(OnCounterBuffStatusChanged);
             EventBus.Unsubscribe<AimStabilizerStartedEvent>(OnAimStabilizerStarted);
             EventBus.Unsubscribe<AimSequenceCompletedEvent>(OnAimSequenceCompleted);
+            EventBus.Unsubscribe<StageStartedEvent>(OnStageStarted);
+            EventBus.Unsubscribe<StageCompletedEvent>(OnStageCompleted);
         }
 
         private void Start()
@@ -322,6 +326,34 @@ namespace LuckyDuelist.UI
             }
         }
 
+        private void OnStageStarted(StageStartedEvent evt)
+        {
+            if (defensePromptText != null)
+            {
+                defensePromptText.text = $"<b><color=#00FFE0>[{evt.StageName.ToUpper()}]</color></b>   [Q] HINDAR   |   [E] PARRY";
+            }
+            RefreshHUD();
+        }
+
+        private void OnStageCompleted(StageCompletedEvent evt)
+        {
+            if (evt.IsVictory)
+            {
+                if (defensePromptText != null)
+                {
+                    defensePromptText.text = $"<b><color=#00FF66>🏆 STAGE {evt.StageNumber} SELESAI! +{evt.GoldEarned} GOLD</color></b>\n<size=12><color=cyan>Menyiapkan Musuh Berikutnya...</color></size>";
+                }
+            }
+            else
+            {
+                if (defensePromptText != null)
+                {
+                    defensePromptText.text = $"<b><color=#FF0055>💀 KALAH DI STAGE {evt.StageNumber}</color></b>";
+                }
+            }
+            UpdateActionButtonsState();
+        }
+
         #endregion
 
         #region UI Refresh & Health Logic
@@ -361,6 +393,15 @@ namespace LuckyDuelist.UI
         {
             var controller = SlotRevolverController.Instance;
             if (controller == null) return;
+
+            // Check if match settlement is running (between stages or end of run)
+            if (GameManager.Instance != null && (GameManager.Instance.CurrentState == GameState.MatchSettlement || GameManager.Instance.CurrentState == GameState.FinalSettlement))
+            {
+                if (spinOrCommitButton != null) spinOrCommitButton.interactable = false;
+                if (spinOrCommitText != null) spinOrCommitText.text = GameManager.Instance.CurrentState == GameState.FinalSettlement ? "VICTORY!" : "STAGE CLEAR!";
+                if (respinAdButton != null) respinAdButton.interactable = false;
+                return;
+            }
 
             // Check if active defense phase is running
             if (LuckyDuelist.Combat.DefenseQTEController.Instance != null && LuckyDuelist.Combat.DefenseQTEController.Instance.IsDefensePhaseActive)
