@@ -6,6 +6,7 @@ using LuckyDuelist.Combat;
 using LuckyDuelist.Core;
 using LuckyDuelist.Events;
 using LuckyDuelist.Experiment;
+using LuckyDuelist.Monetization;
 
 namespace LuckyDuelist.UI
 {
@@ -41,6 +42,8 @@ namespace LuckyDuelist.UI
         [SerializeField] private TMP_Text spinOrCommitText;
         [SerializeField] private Button respinAdButton;
         [SerializeField] private TMP_Text respinAdText;
+        [SerializeField] private Button storeButton;
+        [SerializeField] private TMP_Text storeButtonText;
 
         [Header("Defense Prompt")]
         [SerializeField] private GameObject defensePromptRoot;
@@ -64,6 +67,12 @@ namespace LuckyDuelist.UI
         private void Awake()
         {
             EnsureHUDConstructed();
+            EnsureStoreButtonConstructed();
+            if (storeButton != null)
+            {
+                storeButton.onClick.RemoveListener(OnStoreButtonClicked);
+                storeButton.onClick.AddListener(OnStoreButtonClicked);
+            }
         }
 
         private void OnEnable()
@@ -498,6 +507,8 @@ namespace LuckyDuelist.UI
 
         public void RefreshExperimentGatedUI()
         {
+            EnsureStoreButtonConstructed();
+
             // Re-spin Ad button is ONLY shown on Group A & Group C. Hidden completely on Group B.
             bool allowRespinAd = ExperimentManager.Instance == null || ExperimentManager.Instance.IsRespinAdEnabled;
 
@@ -505,6 +516,125 @@ namespace LuckyDuelist.UI
             {
                 respinAdButton.gameObject.SetActive(allowRespinAd);
             }
+
+            // Store button is ONLY shown on Group B & Group C. Hidden completely on Group A.
+            bool allowStore = ExperimentManager.Instance != null && ExperimentManager.Instance.IsIAPStoreEnabled;
+            if (storeButton != null)
+            {
+                storeButton.gameObject.SetActive(allowStore);
+            }
+
+            // Dynamic layout adjustment for scene-based RectTransforms (anchorMin == 0.5, 0.5)
+            if (respinAdButton != null)
+            {
+                RectTransform respinRect = respinAdButton.GetComponent<RectTransform>();
+                RectTransform storeRect = storeButton != null ? storeButton.GetComponent<RectTransform>() : null;
+
+                if (respinRect != null && respinRect.anchorMin == new Vector2(0.5f, 0.5f))
+                {
+                    if (allowRespinAd && allowStore)
+                    {
+                        // Group C (Hybrid): Stack both buttons neatly so they do not overlap
+                        // the reels above (-11.1) or the defense prompt below (-131).
+                        // Store button: top edge at -17, bottom edge at -55 (5.9 padding below reels).
+                        // Respin button: top edge at -61, bottom edge at -99 (32 padding above defense prompt).
+                        respinRect.anchoredPosition = new Vector2(99.6f, -80f);
+                        respinRect.sizeDelta = new Vector2(182.27f, 38f);
+                        if (respinAdText != null) respinAdText.fontSize = 12f;
+
+                        if (storeRect != null)
+                        {
+                            storeRect.anchorMin = respinRect.anchorMin;
+                            storeRect.anchorMax = respinRect.anchorMax;
+                            storeRect.pivot = respinRect.pivot;
+                            storeRect.anchoredPosition = new Vector2(99.6f, -36f);
+                            storeRect.sizeDelta = new Vector2(182.27f, 38f);
+                            if (storeButtonText != null) storeButtonText.fontSize = 12f;
+                        }
+                    }
+                    else if (allowRespinAd)
+                    {
+                        // Group A (Ads Only): Single standard-sized button beside Spin
+                        respinRect.anchoredPosition = new Vector2(99.6f, -66f);
+                        respinRect.sizeDelta = new Vector2(182.27f, 55.54f);
+                        if (respinAdText != null) respinAdText.fontSize = 13f;
+                    }
+                    else if (allowStore && storeRect != null)
+                    {
+                        // Group B (IAP Only): Single standard-sized button beside Spin
+                        storeRect.anchorMin = respinRect.anchorMin;
+                        storeRect.anchorMax = respinRect.anchorMax;
+                        storeRect.pivot = respinRect.pivot;
+                        storeRect.anchoredPosition = new Vector2(99.6f, -66f);
+                        storeRect.sizeDelta = new Vector2(182.27f, 55.54f);
+                        if (storeButtonText != null) storeButtonText.fontSize = 13f;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Ensures the Store Button exists on the HUD hierarchy even when useProceduralUIFallback is false.
+        /// Places it directly alongside the Spin and Respin buttons.
+        /// </summary>
+        public void EnsureStoreButtonConstructed()
+        {
+            if (storeButton != null) return;
+
+            Transform parentTransform = null;
+            if (bottomLeftHudRoot != null)
+            {
+                parentTransform = bottomLeftHudRoot;
+            }
+            else if (respinAdButton != null)
+            {
+                parentTransform = respinAdButton.transform.parent;
+            }
+            else if (spinOrCommitButton != null)
+            {
+                parentTransform = spinOrCommitButton.transform.parent;
+            }
+
+            if (parentTransform == null) return;
+
+            Transform existing = parentTransform.Find("Store_Button");
+            if (existing != null)
+            {
+                storeButton = existing.GetComponent<Button>();
+                storeButtonText = existing.GetComponentInChildren<TMP_Text>();
+                if (storeButton != null)
+                {
+                    storeButton.onClick.RemoveListener(OnStoreButtonClicked);
+                    storeButton.onClick.AddListener(OnStoreButtonClicked);
+                }
+                return;
+            }
+
+            var storeBtnGo = new GameObject("Store_Button");
+            var storeRect = storeBtnGo.AddComponent<RectTransform>();
+            storeRect.SetParent(parentTransform, false);
+
+            var storeBg = storeBtnGo.AddComponent<Image>();
+            storeBg.color = new Color(0.12f, 0.45f, 0.85f, 1f); // Cyber blue
+            storeButton = storeBtnGo.AddComponent<Button>();
+            storeButton.onClick.AddListener(OnStoreButtonClicked);
+
+            var storeTxtGo = new GameObject("Text");
+            var storeTxtRect = storeTxtGo.AddComponent<RectTransform>();
+            storeTxtRect.SetParent(storeRect, false);
+            storeTxtRect.anchorMin = Vector2.zero;
+            storeTxtRect.anchorMax = Vector2.one;
+            storeTxtRect.offsetMin = Vector2.zero;
+            storeTxtRect.offsetMax = Vector2.zero;
+
+            var storeTmp = storeTxtGo.AddComponent<TextMeshProUGUI>();
+            storeTmp.fontSize = 13;
+            storeTmp.fontStyle = FontStyles.Bold;
+            storeTmp.alignment = TextAlignmentOptions.Center;
+            storeTmp.color = Color.white;
+            storeTmp.text = "[ 🛒 TOKO SKIN ]";
+            storeTmp.raycastTarget = false;
+            storeButtonText = storeTmp;
         }
 
         #endregion
@@ -542,7 +672,25 @@ namespace LuckyDuelist.UI
 
             if (controller.CanRespin())
             {
-                controller.RespinAllReels(isAdWatched: true);
+                if (DummyAdPlayer.Instance != null && ExperimentManager.Instance != null && ExperimentManager.Instance.IsRespinAdEnabled)
+                {
+                    DummyAdPlayer.Instance.ShowRewardedAd(AdPlacementType.RespinSlot, () =>
+                    {
+                        controller.RespinAllReels(isAdWatched: true);
+                    });
+                }
+                else
+                {
+                    controller.RespinAllReels(isAdWatched: true);
+                }
+            }
+        }
+
+        public void OnStoreButtonClicked()
+        {
+            if (VirtualIAPStore.Instance != null)
+            {
+                VirtualIAPStore.Instance.OpenStore();
             }
         }
 
@@ -797,6 +945,33 @@ namespace LuckyDuelist.UI
             adTmp.color = Color.black;
             adTmp.text = "[ 🎬 RE-SPIN ]";
             respinAdText = adTmp;
+
+            // 4b. Store Button (Group B & C)
+            var storeBtnGo = new GameObject("Store_Button");
+            var storeRect = storeBtnGo.AddComponent<RectTransform>();
+            storeRect.SetParent(root, false);
+            storeRect.anchorMin = new Vector2(0.58f, 0.38f);
+            storeRect.anchorMax = new Vector2(0.95f, 0.54f);
+            storeRect.offsetMin = Vector2.zero;
+            storeRect.offsetMax = Vector2.zero;
+
+            var storeBg = storeBtnGo.AddComponent<Image>();
+            storeBg.color = new Color(0.12f, 0.45f, 0.85f, 1f);
+            storeButton = storeBtnGo.AddComponent<Button>();
+            storeButton.onClick.AddListener(OnStoreButtonClicked);
+
+            var storeTxtGo = new GameObject("Text");
+            var storeTxtRect = storeTxtGo.AddComponent<RectTransform>();
+            storeTxtRect.SetParent(storeRect, false);
+            storeTxtRect.anchorMin = Vector2.zero;
+            storeTxtRect.anchorMax = Vector2.one;
+            var storeTmp = storeTxtGo.AddComponent<TextMeshProUGUI>();
+            storeTmp.fontSize = 12;
+            storeTmp.fontStyle = FontStyles.Bold;
+            storeTmp.alignment = TextAlignmentOptions.Center;
+            storeTmp.color = Color.white;
+            storeTmp.text = "[ 🛒 TOKO SKIN ]";
+            storeButtonText = storeTmp;
 
             // 5. Defense Prompt Bar (Bottom)
             defensePromptRoot = new GameObject("Defense_Prompt_Container");

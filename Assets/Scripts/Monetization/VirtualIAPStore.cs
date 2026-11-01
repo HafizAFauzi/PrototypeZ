@@ -62,39 +62,99 @@ namespace LuckyDuelist.Monetization
         public string EquippedRevolverId => _equippedRevolverId;
         public string EquippedSpinnerId => _equippedSpinnerId;
         public string EquippedKnifeId => _equippedKnifeId;
-        public IReadOnlyList<CosmeticCatalogItem> Catalog => _catalog;
+        public IReadOnlyList<CosmeticCatalogItem> Catalog
+        {
+            get
+            {
+                if (_catalog.Count == 0) InitializeCatalog();
+                return _catalog;
+            }
+        }
         #endregion
+
+        private static Font GetDefaultFont()
+        {
+            try
+            {
+                Font f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                if (f != null) return f;
+            }
+            catch { }
+
+            try
+            {
+                Font[] allFonts = Resources.FindObjectsOfTypeAll<Font>();
+                if (allFonts != null && allFonts.Length > 0) return allFonts[0];
+            }
+            catch { }
+
+            try
+            {
+                return Font.CreateDynamicFontFromOSFont("Arial", 16);
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
         private void Awake()
         {
-            if (Instance != null && Instance != this)
+            if (Application.isPlaying && Instance != null && Instance != this)
             {
                 Destroy(gameObject);
                 return;
             }
 
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+            if (Application.isPlaying)
+            {
+                DontDestroyOnLoad(gameObject);
+            }
 
             InitializeCatalog();
             LoadOwnedAndEquippedItems();
             EnsureUIConstructed();
         }
 
+        private bool _isEventsSubscribed = false;
+
+        public void SubscribeEvents()
+        {
+            if (_isEventsSubscribed) return;
+            EventBus.Subscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
+            EventBus.Subscribe<GameStateChangedEvent>(OnGameStateChanged);
+            _isEventsSubscribed = true;
+        }
+
+        public void UnsubscribeEvents()
+        {
+            if (!_isEventsSubscribed) return;
+            EventBus.Unsubscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
+            EventBus.Unsubscribe<GameStateChangedEvent>(OnGameStateChanged);
+            _isEventsSubscribed = false;
+        }
+
+        private void OnEnable()
+        {
+            SubscribeEvents();
+        }
+
         private void Start()
         {
             EnsureUIConstructed();
             HideStoreUI();
+        }
 
-            EventBus.Subscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
-            EventBus.Subscribe<GameStateChangedEvent>(OnGameStateChanged);
+        private void OnDisable()
+        {
+            UnsubscribeEvents();
         }
 
         private void OnDestroy()
         {
+            UnsubscribeEvents();
             if (Instance == this) Instance = null;
-            EventBus.Unsubscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
-            EventBus.Unsubscribe<GameStateChangedEvent>(OnGameStateChanged);
         }
 
         #region Catalog Initialization
@@ -454,6 +514,7 @@ namespace LuckyDuelist.Monetization
 
         public CosmeticCatalogItem GetCatalogItem(string itemId)
         {
+            if (_catalog.Count == 0) InitializeCatalog();
             for (int i = 0; i < _catalog.Count; i++)
             {
                 if (_catalog[i].ItemId == itemId) return _catalog[i];
@@ -466,12 +527,14 @@ namespace LuckyDuelist.Monetization
         /// </summary>
         public void ResetStoreDataForTesting()
         {
+            InitializeCatalog();
             PlayerPrefs.DeleteKey(PREF_KEY_OWNED_ITEMS);
             PlayerPrefs.DeleteKey(PREF_KEY_EQUIPPED_REVOLVER);
             PlayerPrefs.DeleteKey(PREF_KEY_EQUIPPED_SPINNER);
             PlayerPrefs.DeleteKey(PREF_KEY_EQUIPPED_KNIFE);
             PlayerPrefs.Save();
 
+            _isStoreOpen = false;
             _totalIAPRevenue = 0f;
             _totalTransactions = 0;
             LoadOwnedAndEquippedItems();
@@ -529,7 +592,7 @@ namespace LuckyDuelist.Monetization
 
             canvasGo.AddComponent<GraphicRaycaster>();
 
-            Font defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf") ?? Font.CreateDynamicFontFromOSFont("Arial", 16);
+            Font defaultFont = GetDefaultFont();
 
             // 1. Fullscreen Background Panel
             _storeOverlayRoot = new GameObject("Store_Overlay_Panel");
@@ -691,7 +754,7 @@ namespace LuckyDuelist.Monetization
 
         private void CreateFilterTab(RectTransform parent, string label, CosmeticItemType? category, int index)
         {
-            Font defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf") ?? Font.CreateDynamicFontFromOSFont("Arial", 16);
+            Font defaultFont = GetDefaultFont();
 
             var tabGo = new GameObject($"Tab_{label}");
             var tabRect = tabGo.AddComponent<RectTransform>();
@@ -739,12 +802,16 @@ namespace LuckyDuelist.Monetization
             // 2. Clear old item cards
             for (int i = 0; i < _spawnedItemCards.Count; i++)
             {
-                if (_spawnedItemCards[i] != null) Destroy(_spawnedItemCards[i]);
+                if (_spawnedItemCards[i] != null)
+                {
+                    if (Application.isPlaying) Destroy(_spawnedItemCards[i]);
+                    else DestroyImmediate(_spawnedItemCards[i]);
+                }
             }
             _spawnedItemCards.Clear();
 
             // 3. Build filtered item cards
-            Font defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf") ?? Font.CreateDynamicFontFromOSFont("Arial", 16);
+            Font defaultFont = GetDefaultFont();
 
             for (int i = 0; i < _catalog.Count; i++)
             {

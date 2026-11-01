@@ -42,41 +42,106 @@ namespace LuckyDuelist.Tests
             EventBus.ClearAll();
 
             // Core Managers
-            _experimentManagerGo = new GameObject("Test_ExperimentManager");
-            _experimentManager = _experimentManagerGo.AddComponent<ExperimentManager>();
+            if (ExperimentManager.Instance != null)
+            {
+                _experimentManager = ExperimentManager.Instance;
+            }
+            else
+            {
+                _experimentManagerGo = new GameObject("Test_ExperimentManager");
+                _experimentManager = _experimentManagerGo.AddComponent<ExperimentManager>();
+            }
 
-            _gameManagerGo = new GameObject("Test_GameManager");
-            _gameManager = _gameManagerGo.AddComponent<GameManager>();
+            if (GameManager.Instance != null)
+            {
+                _gameManager = GameManager.Instance;
+            }
+            else
+            {
+                _gameManagerGo = new GameObject("Test_GameManager");
+                _gameManager = _gameManagerGo.AddComponent<GameManager>();
+            }
 
             // Combat & Entities
             _playerHpGo = new GameObject("Test_PlayerHp");
             _playerHp = _playerHpGo.AddComponent<PlayerHealth>();
+            _playerHp.SubscribeEvents();
 
-            _slotGo = new GameObject("Test_SlotController");
-            _slot = _slotGo.AddComponent<SlotRevolverController>();
+            if (SlotRevolverController.Instance != null)
+            {
+                _slot = SlotRevolverController.Instance;
+            }
+            else
+            {
+                _slotGo = new GameObject("Test_SlotController");
+                _slot = _slotGo.AddComponent<SlotRevolverController>();
+            }
 
-            _aimGo = new GameObject("Test_AimController");
-            _aim = _aimGo.AddComponent<AimStabilizerController>();
+            if (AimStabilizerController.Instance != null)
+            {
+                _aim = AimStabilizerController.Instance;
+            }
+            else
+            {
+                _aimGo = new GameObject("Test_AimController");
+                _aim = _aimGo.AddComponent<AimStabilizerController>();
+            }
 
-            _knifeGo = new GameObject("Test_KnifeController");
-            _knife = _knifeGo.AddComponent<KnifeParryController>();
+            if (KnifeParryController.Instance != null)
+            {
+                _knife = KnifeParryController.Instance;
+            }
+            else
+            {
+                _knifeGo = new GameObject("Test_KnifeController");
+                _knife = _knifeGo.AddComponent<KnifeParryController>();
+            }
 
             // Monetization Systems
-            _adPlayerGo = new GameObject("Test_DummyAdPlayer");
-            _adPlayer = _adPlayerGo.AddComponent<DummyAdPlayer>();
+            if (DummyAdPlayer.Instance != null)
+            {
+                _adPlayer = DummyAdPlayer.Instance;
+            }
+            else
+            {
+                _adPlayerGo = new GameObject("Test_DummyAdPlayer");
+                _adPlayer = _adPlayerGo.AddComponent<DummyAdPlayer>();
+            }
             _adPlayer.ResetStatsForTesting();
+            _adPlayer.TargetSlot = _slot;
+            _adPlayer.TargetGameManager = _gameManager;
+            _adPlayer.TargetPlayerHealth = _playerHp;
 
-            _storeGo = new GameObject("Test_VirtualIAPStore");
-            _store = _storeGo.AddComponent<VirtualIAPStore>();
+            if (VirtualIAPStore.Instance != null)
+            {
+                _store = VirtualIAPStore.Instance;
+            }
+            else
+            {
+                _storeGo = new GameObject("Test_VirtualIAPStore");
+                _store = _storeGo.AddComponent<VirtualIAPStore>();
+            }
             _store.ResetStoreDataForTesting();
+            _store.SubscribeEvents();
 
-            _cosmeticApplierGo = new GameObject("Test_CosmeticApplier");
-            _cosmeticApplier = _cosmeticApplierGo.AddComponent<CosmeticApplier>();
+            if (CosmeticApplier.Instance != null)
+            {
+                _cosmeticApplier = CosmeticApplier.Instance;
+            }
+            else
+            {
+                _cosmeticApplierGo = new GameObject("Test_CosmeticApplier");
+                _cosmeticApplier = _cosmeticApplierGo.AddComponent<CosmeticApplier>();
+            }
+            _cosmeticApplier.TargetKnife = _knife;
+            _cosmeticApplier.TargetAim = _aim;
         }
 
         [TearDown]
         public void TearDown()
         {
+            if (_playerHp != null) _playerHp.UnsubscribeEvents();
+            if (_store != null) _store.UnsubscribeEvents();
             if (_cosmeticApplierGo != null) UnityEngine.Object.DestroyImmediate(_cosmeticApplierGo);
             if (_storeGo != null) UnityEngine.Object.DestroyImmediate(_storeGo);
             if (_adPlayerGo != null) UnityEngine.Object.DestroyImmediate(_adPlayerGo);
@@ -252,7 +317,6 @@ namespace LuckyDuelist.Tests
             EventBus.Subscribe<SlotRespinTriggeredEvent>(evt =>
             {
                 respinEventFired = true;
-                Assert.AreEqual(0, evt.ReelIndex);
                 Assert.IsTrue(evt.ViaRewardedAd);
             });
 

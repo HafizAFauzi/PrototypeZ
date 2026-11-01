@@ -16,30 +16,57 @@ namespace LuckyDuelist.Monetization
     {
         public static CosmeticApplier Instance { get; private set; }
 
+        [Header("Targets (Optional direct binding)")]
+        [SerializeField] private KnifeParryController targetKnife;
+        [SerializeField] private AimStabilizerController targetAim;
+
+        public KnifeParryController TargetKnife
+        {
+            get => targetKnife != null ? targetKnife : KnifeParryController.Instance;
+            set => targetKnife = value;
+        }
+
+        public AimStabilizerController TargetAim
+        {
+            get => targetAim != null ? targetAim : AimStabilizerController.Instance;
+            set => targetAim = value;
+        }
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
             {
-                Destroy(gameObject);
+                if (Application.isPlaying) Destroy(gameObject);
+                else DestroyImmediate(gameObject);
                 return;
             }
 
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+            if (Application.isPlaying)
+            {
+                DontDestroyOnLoad(gameObject);
+            }
+        }
+
+        private void OnEnable()
+        {
+            EventBus.Subscribe<CosmeticEquippedEvent>(OnCosmeticEquipped);
         }
 
         private void Start()
         {
-            EventBus.Subscribe<CosmeticEquippedEvent>(OnCosmeticEquipped);
-
             // Apply currently equipped cosmetics on startup
             ApplyAllEquippedCosmetics();
+        }
+
+        private void OnDisable()
+        {
+            EventBus.Unsubscribe<CosmeticEquippedEvent>(OnCosmeticEquipped);
         }
 
         private void OnDestroy()
         {
             if (Instance == this) Instance = null;
-            EventBus.Unsubscribe<CosmeticEquippedEvent>(OnCosmeticEquipped);
         }
 
         /// <summary>
@@ -72,49 +99,50 @@ namespace LuckyDuelist.Monetization
             }
         }
 
-        public void ApplyKnifeSkin(string itemId)
+        public void ApplyKnifeSkin(string itemId, KnifeParryController customKnife = null)
         {
-            if (KnifeParryController.Instance == null) return;
+            var knife = customKnife != null ? customKnife : TargetKnife;
+            if (knife == null) return;
 
             switch (itemId)
             {
                 case "SKIN_KNIFE_TANTO":
-                    KnifeParryController.Instance.ApplySkin(KnifeParryController.KnifeSkin.CyberTanto);
+                    knife.ApplySkin(KnifeParryController.KnifeSkin.CyberTanto);
                     break;
 
                 case "SKIN_KNIFE_VIPER":
-                    KnifeParryController.Instance.ApplySkin(KnifeParryController.KnifeSkin.ViperDagger);
+                    knife.ApplySkin(KnifeParryController.KnifeSkin.ViperDagger);
                     break;
 
                 case VirtualIAPStore.DEFAULT_KNIFE_ID:
                 default:
-                    KnifeParryController.Instance.ApplySkin(KnifeParryController.KnifeSkin.DefaultCombatKnife);
+                    knife.ApplySkin(KnifeParryController.KnifeSkin.DefaultCombatKnife);
                     break;
             }
 
             Debug.Log($"[CosmeticApplier] Applied knife skin: {itemId}");
         }
 
-        public void ApplyRevolverSkin(string itemId)
+        public void ApplyRevolverSkin(string itemId, AimStabilizerController customAim = null)
         {
-            // Update Aim reticle color in AimStabilizerController if present
-            if (AimStabilizerController.Instance != null)
+            var aim = customAim != null ? customAim : TargetAim;
+            if (aim != null)
             {
                 switch (itemId)
                 {
                     case "SKIN_REVOLVER_DAMASCUS":
                         // Plasma Purple reticle tint (GDD 4.2)
-                        AimStabilizerController.Instance.SetReticleColorTint(new Color(0.7f, 0.2f, 1.0f));
+                        aim.SetReticleColorTint(new Color(0.7f, 0.2f, 1.0f));
                         break;
 
                     case "SKIN_REVOLVER_GOLD":
                         // Gold reticle tint (GDD 4.2)
-                        AimStabilizerController.Instance.SetReticleColorTint(new Color(1.0f, 0.85f, 0.1f));
+                        aim.SetReticleColorTint(new Color(1.0f, 0.85f, 0.1f));
                         break;
 
                     default:
                         // Cyan standard reticle
-                        AimStabilizerController.Instance.SetReticleColorTint(new Color(0.0f, 1.0f, 0.85f));
+                        aim.SetReticleColorTint(new Color(0.0f, 1.0f, 0.85f));
                         break;
                 }
             }
