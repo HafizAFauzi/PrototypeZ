@@ -25,7 +25,7 @@ namespace LuckyDuelist.Core
 
         [Header("Evaluation Survey Configuration")]
         [Tooltip("Google Form survey URL template. Placeholder {USER_ID} and {GROUP_ID} will be automatically replaced.")]
-        [SerializeField] private string surveyBaseUrl = "https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform?usp=pp_url&entry.USER_ID_FIELD={USER_ID}&entry.GROUP_ID_FIELD={GROUP_ID}";
+        [SerializeField] private string surveyBaseUrl = "https://docs.google.com/forms/d/e/1FAIpQLSeAguN6wn9iFWJWSneScYFAChTlFlVmcKC7GCOO9yXqQjny3Q/viewform?usp=pp_url&entry.1419689152={USER_ID}&entry.1387777410={GROUP_ID}";
 
         // Session & Run Tracking
         public GameState CurrentState => currentState;

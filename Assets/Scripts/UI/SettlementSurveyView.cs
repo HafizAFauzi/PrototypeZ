@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using LuckyDuelist.Core;
@@ -38,6 +38,7 @@ namespace LuckyDuelist.UI
         [SerializeField] private Button cancelAutoRedirectButton;
 
         private float _remainingCountdown = -1f;
+        private bool _isSubscribed = false;
 
         private void Awake()
         {
@@ -52,28 +53,46 @@ namespace LuckyDuelist.UI
 
             EnsureUIHierarchy();
             SetUIVisible(false);
+            SubscribeEvents();
+        }
+
+        private void OnEnable()
+        {
+            SubscribeEvents();
+        }
+
+        private void OnDisable()
+        {
+            UnsubscribeEvents();
         }
 
         private void Start()
         {
-            SubscribeToEvents();
+            SubscribeEvents();
         }
 
         private void OnDestroy()
         {
-            UnsubscribeFromEvents();
+            UnsubscribeEvents();
+            if (Instance == this) Instance = null;
         }
 
-        private void SubscribeToEvents()
+        public void SubscribeEvents()
         {
+            if (_isSubscribed) return;
+            _isSubscribed = true;
+
             EventBus.Subscribe<FinalSettlementEvent>(OnFinalSettlement);
             EventBus.Subscribe<TelemetrySyncStartedEvent>(OnTelemetrySyncStarted);
             EventBus.Subscribe<TelemetrySyncCompletedEvent>(OnTelemetrySyncCompleted);
             EventBus.Subscribe<SurveyRequestedEvent>(OnSurveyRequested);
         }
 
-        private void UnsubscribeFromEvents()
+        public void UnsubscribeEvents()
         {
+            if (!_isSubscribed) return;
+            _isSubscribed = false;
+
             EventBus.Unsubscribe<FinalSettlementEvent>(OnFinalSettlement);
             EventBus.Unsubscribe<TelemetrySyncStartedEvent>(OnTelemetrySyncStarted);
             EventBus.Unsubscribe<TelemetrySyncCompletedEvent>(OnTelemetrySyncCompleted);
@@ -146,7 +165,7 @@ namespace LuckyDuelist.UI
             titleText.fontStyle = FontStyle.Bold;
             titleText.alignment = TextAnchor.MiddleCenter;
             titleText.color = new Color(1.0f, 0.85f, 0.2f); // Neon Gold
-            titleText.text = "★ DUEL SELESAI / SESSION SETTLEMENT ★";
+            titleText.text = "â˜… DUEL SELESAI / SESSION SETTLEMENT â˜…";
 
             // 5. Subtitle & Result
             var subtitleGo = new GameObject("Subtitle_Text");
@@ -205,7 +224,7 @@ namespace LuckyDuelist.UI
             arpuSummaryText.fontSize = 16;
             arpuSummaryText.alignment = TextAnchor.UpperLeft;
             arpuSummaryText.color = Color.white;
-            arpuSummaryText.text = "💰 ANALISIS ARPU EKONOMI:\n- Rewarded Ads: Rp 0\n- IAP Cosmetics: Rp 0\n- Total ARPU: Rp 0\n- Sisa Kuota Budget: Rp 20.000";
+            arpuSummaryText.text = "ðŸ’° ANALISIS ARPU EKONOMI:\n- Rewarded Ads: Rp 0\n- IAP Cosmetics: Rp 0\n- Total ARPU: Rp 0\n- Sisa Kuota Budget: Rp 20.000";
 
             // 8. FPS Reflex Combat Stats Box
             var combatGo = new GameObject("Combat_Summary_Box");
@@ -232,7 +251,7 @@ namespace LuckyDuelist.UI
             combatSummaryText.fontSize = 16;
             combatSummaryText.alignment = TextAnchor.UpperLeft;
             combatSummaryText.color = Color.white;
-            combatSummaryText.text = "⚔ STATISTIK REFLEKS COMBAT:\n- Parry Kuning [E]: 0x Sukses\n- Dodge Merah [Q]: 0x Sukses\n- Salah Tekan E: 0x\n- Damage Deflected: 0 DMG\n- Akurasi Lock-on: 100%";
+            combatSummaryText.text = "âš” STATISTIK REFLEKS COMBAT:\n- Parry Kuning [E]: 0x Sukses\n- Dodge Merah [Q]: 0x Sukses\n- Salah Tekan E: 0x\n- Damage Deflected: 0 DMG\n- Akurasi Lock-on: 100%";
 
             // 9. Cloud Telemetry Status Box
             var cloudStatusGo = new GameObject("Cloud_Status_Box");
@@ -260,7 +279,7 @@ namespace LuckyDuelist.UI
             cloudSyncStatusText.fontStyle = FontStyle.Bold;
             cloudSyncStatusText.alignment = TextAnchor.MiddleCenter;
             cloudSyncStatusText.color = new Color(1.0f, 0.85f, 0.2f);
-            cloudSyncStatusText.text = "⏳ Menghubungkan ke Cloud Backend (Supabase/Firestore)...";
+            cloudSyncStatusText.text = "â³ Menghubungkan ke Cloud Backend (Supabase/Firestore)...";
 
             // 10. Auto-redirect Countdown Notice
             var countdownGo = new GameObject("Countdown_Notice");
@@ -307,7 +326,7 @@ namespace LuckyDuelist.UI
             surveyButtonLabel.fontStyle = FontStyle.Bold;
             surveyButtonLabel.alignment = TextAnchor.MiddleCenter;
             surveyButtonLabel.color = Color.black;
-            surveyButtonLabel.text = "➔ LANJUT KE KUESIONER EVALUASI (GOOGLE FORM)";
+            surveyButtonLabel.text = "âž” LANJUT KE KUESIONER EVALUASI (GOOGLE FORM)";
 
             // 12. Bottom Controls (Cancel countdown or return to lobby)
             var cancelBtnGo = new GameObject("Button_CancelCountdown");
@@ -421,8 +440,8 @@ namespace LuckyDuelist.UI
             if (titleText != null)
             {
                 titleText.text = evt.CompletedAllStages
-                    ? "★ SELAMAT! SEMUA STAGE TELAH DITUNTASKAN ★"
-                    : "⚔ PERTARUNGAN BERAKHIR / SESSION SETTLEMENT ⚔";
+                    ? "â˜… SELAMAT! SEMUA STAGE TELAH DITUNTASKAN â˜…"
+                    : "âš” PERTARUNGAN BERAKHIR / SESSION SETTLEMENT âš”";
                 titleText.color = evt.CompletedAllStages ? new Color(1.0f, 0.85f, 0.2f) : new Color(1.0f, 0.4f, 0.4f);
             }
 
@@ -456,11 +475,11 @@ namespace LuckyDuelist.UI
             if (arpuSummaryText != null)
             {
                 arpuSummaryText.text =
-                    $"💰 ANALISIS ARPU EKONOMI:\n" +
-                    $"• Pendapatan Ads: Rp {adRev:N0}\n" +
-                    $"• Transaksi IAP: Rp {iapRev:N0}\n" +
-                    $"• TOTAL ARPU: Rp {arpu:N0}\n" +
-                    $"• Sisa Kuota Budget: Rp {remainingBudget:N0}";
+                    $"ðŸ’° ANALISIS ARPU EKONOMI:\n" +
+                    $"â€¢ Pendapatan Ads: Rp {adRev:N0}\n" +
+                    $"â€¢ Transaksi IAP: Rp {iapRev:N0}\n" +
+                    $"â€¢ TOTAL ARPU: Rp {arpu:N0}\n" +
+                    $"â€¢ Sisa Kuota Budget: Rp {remainingBudget:N0}";
             }
 
             // Combat Reflex Summary
@@ -483,12 +502,12 @@ namespace LuckyDuelist.UI
             if (combatSummaryText != null)
             {
                 combatSummaryText.text =
-                    $"⚔ STATISTIK REFLEKS COMBAT:\n" +
-                    $"• Tangkisan Parry [E]: {parried}x Berhasil\n" +
-                    $"• Hindaran Dodge [Q]: {dodged}x Berhasil\n" +
-                    $"• Salah Tekan E saat Red: {failedParry}x\n" +
-                    $"• Deflected Damage: {deflectedDmg} DMG\n" +
-                    $"• Tembakan Auto Lock-on: {shotsFired}x";
+                    $"âš” STATISTIK REFLEKS COMBAT:\n" +
+                    $"â€¢ Tangkisan Parry [E]: {parried}x Berhasil\n" +
+                    $"â€¢ Hindaran Dodge [Q]: {dodged}x Berhasil\n" +
+                    $"â€¢ Salah Tekan E saat Red: {failedParry}x\n" +
+                    $"â€¢ Deflected Damage: {deflectedDmg} DMG\n" +
+                    $"â€¢ Tembakan Auto Lock-on: {shotsFired}x";
             }
         }
 
@@ -496,7 +515,7 @@ namespace LuckyDuelist.UI
         {
             if (cloudSyncStatusText != null)
             {
-                cloudSyncStatusText.text = "⏳ Menyinkronkan data sesi ke Cloud Backend (Supabase / Firestore)...";
+                cloudSyncStatusText.text = "â³ Menyinkronkan data sesi ke Cloud Backend (Supabase / Firestore)...";
                 cloudSyncStatusText.color = new Color(1.0f, 0.85f, 0.2f); // Yellow
             }
         }
@@ -507,17 +526,17 @@ namespace LuckyDuelist.UI
 
             if (evt.IsSuccess)
             {
-                cloudSyncStatusText.text = "✓ Telemetri Berhasil Tersinkronisasi ke Cloud Backend!";
+                cloudSyncStatusText.text = "âœ“ Telemetri Berhasil Tersinkronisasi ke Cloud Backend!";
                 cloudSyncStatusText.color = new Color(0.2f, 1.0f, 0.5f); // Neon Green
             }
             else if (evt.IsSavedToLocalFallback)
             {
-                cloudSyncStatusText.text = "⚠ Mode Offline: Data sesi berhasil diamankan di pending_logs.json";
+                cloudSyncStatusText.text = "âš  Mode Offline: Data sesi berhasil diamankan di pending_logs.json";
                 cloudSyncStatusText.color = new Color(1.0f, 0.7f, 0.2f); // Orange Gold
             }
             else
             {
-                cloudSyncStatusText.text = $"✕ Gagal Sinkronisasi: {evt.Message}";
+                cloudSyncStatusText.text = $"âœ• Gagal Sinkronisasi: {evt.Message}";
                 cloudSyncStatusText.color = new Color(1.0f, 0.4f, 0.4f); // Red
             }
         }
@@ -526,7 +545,7 @@ namespace LuckyDuelist.UI
         {
             if (countdownPromptText != null)
             {
-                countdownPromptText.text = "✓ Browser kuesioner evaluasi telah dibuka di jendela baru!";
+                countdownPromptText.text = "âœ“ Browser kuesioner evaluasi telah dibuka di jendela baru!";
                 countdownPromptText.color = new Color(0.4f, 1.0f, 0.6f);
             }
         }
@@ -548,7 +567,7 @@ namespace LuckyDuelist.UI
 
                 if (surveyButtonLabel != null)
                 {
-                    surveyButtonLabel.text = $"➔ LANJUT KE KUESIONER EVALUASI ({_remainingCountdown:F0}s)";
+                    surveyButtonLabel.text = $"âž” LANJUT KE KUESIONER EVALUASI ({_remainingCountdown:F0}s)";
                 }
 
                 yield return new WaitForSeconds(1.0f);
@@ -557,7 +576,7 @@ namespace LuckyDuelist.UI
 
             if (surveyButtonLabel != null)
             {
-                surveyButtonLabel.text = "➔ BUKA KUESIONER EVALUASI (GOOGLE FORM)";
+                surveyButtonLabel.text = "âž” BUKA KUESIONER EVALUASI (GOOGLE FORM)";
             }
 
             Debug.Log("[SettlementSurveyView] Auto-redirect countdown expired. Executing survey redirection.");
@@ -598,7 +617,7 @@ namespace LuckyDuelist.UI
 
             if (surveyButtonLabel != null)
             {
-                surveyButtonLabel.text = "➔ LANJUT KE KUESIONER EVALUASI (GOOGLE FORM)";
+                surveyButtonLabel.text = "âž” LANJUT KE KUESIONER EVALUASI (GOOGLE FORM)";
             }
         }
 

@@ -52,6 +52,7 @@ namespace LuckyDuelist.Telemetry
         // Custom path override for testing
         private string _customOfflineFilePath = null;
         private Coroutine _autoRedirectCoroutine = null;
+        private bool _isSubscribed = false;
 
         public const string DEFAULT_PENDING_LOGS_FILENAME = "pending_logs.json";
 
@@ -110,11 +111,23 @@ namespace LuckyDuelist.Telemetry
             DontDestroyOnLoad(gameObject);
 
             InitializeNewSession();
+            SubscribeEvents();
+        }
+
+        private void OnEnable()
+        {
+            SubscribeEvents();
+        }
+
+        private void OnDisable()
+        {
+            UnsubscribeEvents();
         }
 
         private void Start()
         {
-            SubscribeToEvents();
+            SubscribeEvents();
+            Debug.Log($"<color=cyan>[TelemetryService] Offline Fallback File Path: {GetOfflineFilePath()}</color>");
 
             if (autoFlushPendingOnStart && GetPendingLogsCount() > 0)
             {
@@ -124,7 +137,8 @@ namespace LuckyDuelist.Telemetry
 
         private void OnDestroy()
         {
-            UnsubscribeFromEvents();
+            UnsubscribeEvents();
+            if (Instance == this) Instance = null;
         }
 
         #region Session Lifecycle & Initialization
@@ -170,6 +184,7 @@ namespace LuckyDuelist.Telemetry
         {
             CancelAutoRedirect();
             InitializeNewSession();
+            SubscribeEvents();
             LastSyncSuccessful = false;
             LastSyncMessage = string.Empty;
             IsSyncing = false;
@@ -179,8 +194,11 @@ namespace LuckyDuelist.Telemetry
 
         #region Event Subscriptions & Data Collection
 
-        private void SubscribeToEvents()
+        public void SubscribeEvents()
         {
+            if (_isSubscribed) return;
+            _isSubscribed = true;
+
             EventBus.Subscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
             EventBus.Subscribe<IAPTransactionCompletedEvent>(OnIAPTransactionCompleted);
             EventBus.Subscribe<AdImpressionCompletedEvent>(OnAdImpressionCompleted);
@@ -193,8 +211,11 @@ namespace LuckyDuelist.Telemetry
             EventBus.Subscribe<FinalSettlementEvent>(OnFinalSettlement);
         }
 
-        private void UnsubscribeFromEvents()
+        public void UnsubscribeEvents()
         {
+            if (!_isSubscribed) return;
+            _isSubscribed = false;
+
             EventBus.Unsubscribe<ExperimentGroupAssignedEvent>(OnExperimentGroupAssigned);
             EventBus.Unsubscribe<IAPTransactionCompletedEvent>(OnIAPTransactionCompleted);
             EventBus.Unsubscribe<AdImpressionCompletedEvent>(OnAdImpressionCompleted);
@@ -270,7 +291,7 @@ namespace LuckyDuelist.Telemetry
         {
             if (evt.ViaRewardedAd && CurrentStageDetail != null)
             {
-                // Count handled in AdImpressionCompletedEvent if triggered via DummyAdPlayer
+                // Handled in AdImpressionCompletedEvent if triggered via DummyAdPlayer
             }
         }
 
@@ -391,6 +412,38 @@ namespace LuckyDuelist.Telemetry
                 return;
             }
 
+            // Check if endpoint is placeholder or unconfigured
+            bool isPlaceholder = string.IsNullOrEmpty(endpointUrl) || endpointUrl.Contains("your-project.supabase.co") || endpointUrl.Contains("YOUR_PROJECT");
+
+            if (isPlaceholder)
+            {
+                string sessionId = CurrentPayload.session != null ? CurrentPayload.session.session_id : Guid.NewGuid().ToString();
+                EventBus.Publish(new TelemetrySyncStartedEvent(sessionId, endpointUrl, false));
+
+                Debug.LogWarning("[TelemetryService] Endpoint URL is placeholder. Preserving payload in offline local fallback.");
+                bool saved = false;
+                if (offlineFallbackEnabled)
+                {
+                    saved = SaveToOfflineFallback(CurrentPayload);
+                }
+
+                IsSyncing = false;
+                LastSyncSuccessful = false;
+                LastSyncMessage = "Endpoint is unconfigured placeholder. Saved locally.";
+
+                EventBus.Publish(new TelemetrySyncCompletedEvent(
+                    sessionId,
+                    isSuccess: false,
+                    isSavedToLocalFallback: saved,
+                    responseCode: 0,
+                    message: LastSyncMessage,
+                    payloadJson: CurrentPayload.ToJson(true)
+                ));
+
+                onComplete?.Invoke(false, LastSyncMessage);
+                return;
+            }
+
             StartCoroutine(SendPayloadRoutine(CurrentPayload, (success, msg) =>
             {
                 LastSyncSuccessful = success;
@@ -407,34 +460,6 @@ namespace LuckyDuelist.Telemetry
 
             EventBus.Publish(new TelemetrySyncStartedEvent(sessionId, endpointUrl, false));
             Debug.Log($"[TelemetryService] Sending HTTP POST to {endpointUrl} ({targetBackend})...\nPayload preview: {payload.user_id} / ARPU: {payload.monetization.total_user_arpu}");
-
-            // Check if endpoint is placeholder or unconfigured
-            bool isPlaceholder = string.IsNullOrEmpty(endpointUrl) || endpointUrl.Contains("your-project.supabase.co") || endpointUrl.Contains("YOUR_PROJECT");
-
-            if (isPlaceholder)
-            {
-                Debug.LogWarning("[TelemetryService] Endpoint URL is placeholder. Simulating offline local fallback preservation.");
-                if (offlineFallbackEnabled)
-                {
-                    SaveToOfflineFallback(payload);
-                }
-
-                IsSyncing = false;
-                LastSyncSuccessful = false;
-                LastSyncMessage = "Endpoint is unconfigured placeholder. Saved locally.";
-
-                EventBus.Publish(new TelemetrySyncCompletedEvent(
-                    sessionId,
-                    isSuccess: false,
-                    isSavedToLocalFallback: offlineFallbackEnabled,
-                    responseCode: 0,
-                    message: LastSyncMessage,
-                    payloadJson: payload.ToJson(true)
-                ));
-
-                onComplete?.Invoke(false, LastSyncMessage);
-                yield break;
-            }
 
             byte[] bodyRaw = Encoding.UTF8.GetBytes(bodyJson);
 
@@ -647,11 +672,9 @@ namespace LuckyDuelist.Telemetry
                 if (syncSuccess)
                 {
                     uploadedCount++;
-                    // Remove from list
                     remaining.RemoveAt(i);
                     i--;
 
-                    // Update disk queue
                     queue.pendingSessions = remaining;
                     string path = GetOfflineFilePath();
                     if (remaining.Count > 0)
@@ -665,7 +688,6 @@ namespace LuckyDuelist.Telemetry
                 }
                 else
                 {
-                    // Network error occurred again, pause flushing
                     Debug.LogWarning("[TelemetryService] Pausing offline queue flush due to network interruption.");
                     break;
                 }
@@ -673,6 +695,28 @@ namespace LuckyDuelist.Telemetry
 
             Debug.Log($"[TelemetryService] Flush finished: {uploadedCount}/{initialCount} sessions uploaded.");
             onComplete?.Invoke(uploadedCount, remaining.Count);
+        }
+
+        /// <summary>
+        /// Context menu helper to open the local persistent data folder in Windows Explorer.
+        /// </summary>
+        [ContextMenu("Open Persistent Data Folder (Explorer)")]
+        public void OpenPersistentDataFolder()
+        {
+            string folder = Application.persistentDataPath;
+            Debug.Log($"<color=cyan>[TelemetryService] Opening Persistent Data Folder: {folder}</color>");
+            Application.OpenURL("file://" + folder);
+        }
+
+        /// <summary>
+        /// Context menu helper to immediately test saving the current session payload to offline fallback.
+        /// </summary>
+        [ContextMenu("Test Save Current Session to Offline Fallback")]
+        public void TestSaveCurrentSessionToOfflineFallback()
+        {
+            if (CurrentPayload == null) InitializeNewSession();
+            bool saved = SaveToOfflineFallback(CurrentPayload);
+            Debug.Log($"<color=yellow>[TelemetryService] Test save result: {saved}. Total pending logs count: {GetPendingLogsCount()} at {GetOfflineFilePath()}</color>");
         }
 
         #endregion
@@ -695,7 +739,7 @@ namespace LuckyDuelist.Telemetry
             {
                 string userId = CurrentPayload != null ? CurrentPayload.user_id : "UNKNOWN_USER";
                 string groupId = CurrentPayload != null ? CurrentPayload.group_id : "GROUP_A";
-                string fallbackUrl = $"https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform?usp=pp_url&entry.USER_ID_FIELD={UnityWebRequest.EscapeURL(userId)}&entry.GROUP_ID_FIELD={UnityWebRequest.EscapeURL(groupId)}";
+                string fallbackUrl = $"https://docs.google.com/forms/d/e/1FAIpQLSeAguN6wn9iFWJWSneScYFAChTlFlVmcKC7GCOO9yXqQjny3Q/viewform?usp=pp_url&entry.1419689152={UnityWebRequest.EscapeURL(userId)}&entry.1387777410={UnityWebRequest.EscapeURL(groupId)}";
                 Application.OpenURL(fallbackUrl);
                 EventBus.Publish(new SurveyRequestedEvent(fallbackUrl, userId, groupId));
             }
