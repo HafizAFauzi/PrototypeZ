@@ -3377,7 +3377,7 @@ MonoBehaviour:
     baseGoldReward: 250
     stageDescription: Final Boss. Rapid alternating bursts testing Counter and Mark
       slot combinations.
-  surveyBaseUrl: https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform?usp=pp_url&entry.USER_ID_FIELD={USER_ID}&entry.GROUP_ID_FIELD={GROUP_ID}
+  surveyBaseUrl: https://docs.google.com/forms/d/e/1FAIpQLSeAguN6wn9iFWJWSneScYFAChTlFlVmcKC7GCOO9yXqQjny3Q/viewform?usp=pp_url&entry.1419689152={USER_ID}&entry.1387777410={GROUP_ID}
 --- !u!1 &2106949748
 GameObject:
   m_ObjectHideFlags: 0
