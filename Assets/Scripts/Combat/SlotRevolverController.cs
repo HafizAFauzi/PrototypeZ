@@ -182,7 +182,9 @@ namespace LuckyDuelist.Combat
         /// </summary>
         public bool CanSpin()
         {
-            return !_isSpinning && !_hasSpunThisTurn;
+            if (_isSpinning || _hasSpunThisTurn) return false;
+            if (AimStabilizerController.Instance != null && AimStabilizerController.Instance.IsAiming) return false;
+            return true;
         }
 
         /// <summary>
@@ -407,7 +409,9 @@ namespace LuckyDuelist.Combat
         /// </summary>
         public bool CanCommitTurn()
         {
-            return _hasSpunThisTurn && !_isSpinning && !_turnCommitted;
+            if (!_hasSpunThisTurn || _isSpinning || _turnCommitted) return false;
+            if (AimStabilizerController.Instance != null && AimStabilizerController.Instance.IsAiming) return false;
+            return true;
         }
 
         /// <summary>

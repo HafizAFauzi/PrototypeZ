@@ -46,14 +46,32 @@ namespace LuckyDuelist.Combat
         {
             EventBus.Subscribe<StageStartedEvent>(OnStageStarted);
 
-            // Initial broadcast
+            // Initial broadcast & prominent console log
             EventBus.Publish(new EnemyHealthChangedEvent(currentHealth, maxHealth, 0, false, "Initial"));
+            Debug.Log($"<color=#00FFE0><b>[EnemyHealth]</b></color> Musuh Aktif: <b>{enemyName}</b> (Stage {stageNumber}) | Nyawa Awal: <color=#00FF66><b>{currentHealth} / {maxHealth} HP</b></color> {GetHpBarString(currentHealth, maxHealth, 10)} (100%)");
         }
 
         private void OnDestroy()
         {
             if (Instance == this) Instance = null;
             EventBus.Unsubscribe<StageStartedEvent>(OnStageStarted);
+        }
+
+        /// <summary>
+        /// Generates a visual ASCII health bar string for crisp console debugging.
+        /// E.g. [██████░░░░]
+        /// </summary>
+        public static string GetHpBarString(int current, int max, int totalBlocks = 10)
+        {
+            if (max <= 0) return "[----------]";
+            float ratio = Mathf.Clamp01((float)current / max);
+            int filled = Mathf.RoundToInt(ratio * totalBlocks);
+            string bar = "";
+            for (int i = 0; i < totalBlocks; i++)
+            {
+                bar += (i < filled) ? "█" : "░";
+            }
+            return $"[{bar}]";
         }
 
         /// <summary>
@@ -66,13 +84,17 @@ namespace LuckyDuelist.Combat
             int prev = currentHealth;
             currentHealth = Mathf.Max(0, currentHealth - amount);
             int delta = currentHealth - prev;
+            int hpPercent = Mathf.RoundToInt(HealthPercent * 100f);
+            string bar = GetHpBarString(currentHealth, maxHealth, 10);
 
-            Debug.Log($"<color=red>[EnemyHealth]</color> {enemyName} took {amount} {(isCritical ? "CRITICAL " : "")}damage ({reason}). HP: {currentHealth}/{maxHealth}");
+            string critTag = isCritical ? "<color=#FF0055><b>[CRITICAL 2X]</b></color> " : "";
+            Debug.Log($"<color=#FF3366><b>[EnemyHealth]</b></color> {critTag}<b>{enemyName}</b> terkena <b>-{amount} DMG</b> ({reason})! " +
+                      $"Sisa Nyawa: <color=#00FFE0><b>{currentHealth} / {maxHealth} HP</b></color> {bar} ({hpPercent}%)");
             EventBus.Publish(new EnemyHealthChangedEvent(currentHealth, maxHealth, delta, isCritical, reason));
 
             if (currentHealth <= 0)
             {
-                Debug.Log($"<color=green>[EnemyHealth]</color> {enemyName} has been defeated!");
+                Debug.Log($"<color=#00FF66><b>[EnemyHealth]</b></color> <b>{enemyName} TELAH TEWAS!</b> Sisa HP: <b>0 / {maxHealth}</b> [░░░░░░░░░░] (0%). Memicu Kemenangan Stage!");
                 if (GameManager.Instance != null)
                 {
                     int turns = SlotRevolverController.Instance != null ? SlotRevolverController.Instance.TurnNumber : 1;
@@ -112,6 +134,7 @@ namespace LuckyDuelist.Combat
         /// </summary>
         public void ResetForStage(int stageNum, string name, int maxHp)
         {
+            Instance = this;
             stageNumber = stageNum;
             enemyName = name;
             maxHealth = maxHp;
@@ -120,6 +143,7 @@ namespace LuckyDuelist.Combat
 
             EventBus.Publish(new EnemyHealthChangedEvent(currentHealth, maxHealth, 0, false, "StageReset"));
             EventBus.Publish(new EnemyMarkStatusChangedEvent(false, "StageReset"));
+            Debug.Log($"<color=#00FFE0><b>[EnemyHealth]</b></color> Reset Musuh Stage {stageNumber}: <b>{enemyName}</b> | HP Penuh: <color=#00FF66><b>{currentHealth}/{maxHealth} HP</b></color> {GetHpBarString(currentHealth, maxHealth, 10)} (100%)");
         }
 
         /// <summary>
