@@ -34,11 +34,13 @@ namespace LuckyDuelist.Tests
 
             _aimGo = new GameObject("TestAimStabilizer");
             _aimController = _aimGo.AddComponent<AimStabilizerController>();
+            _aimController.SubscribeEvents();
         }
 
         [TearDown]
         public void TearDown()
         {
+            if (_aimController != null) _aimController.UnsubscribeEvents();
             if (_aimGo != null) Object.DestroyImmediate(_aimGo);
             if (_enemyGo != null) Object.DestroyImmediate(_enemyGo);
             if (_gameManagerGo != null) Object.DestroyImmediate(_gameManagerGo);
@@ -293,9 +295,9 @@ namespace LuckyDuelist.Tests
                 totalBursts = evt.TotalBursts;
             });
 
-            // Simulate committing 2x Attack
+            // Simulate committing 2x Attack (passing TurnNumber and ExecutedSymbols)
             var symbols = new List<SlotSymbol> { SlotSymbol.ATTACK, SlotSymbol.ATTACK, SlotSymbol.HEAL };
-            EventBus.Publish(new TurnCommittedEvent(1, symbols, new SlotSymbol?[2]));
+            EventBus.Publish(new TurnCommittedEvent(1, symbols));
 
             Assert.IsTrue(sessionStarted);
             Assert.AreEqual(2, totalBursts);
@@ -307,7 +309,7 @@ namespace LuckyDuelist.Tests
         public void TurnCommitted_WithMarkAndAttack_AppliesMarkAndStartsSession()
         {
             var symbols = new List<SlotSymbol> { SlotSymbol.MARK, SlotSymbol.ATTACK };
-            EventBus.Publish(new TurnCommittedEvent(1, symbols, new SlotSymbol?[2]));
+            EventBus.Publish(new TurnCommittedEvent(1, symbols));
 
             Assert.IsTrue(_enemyHealth.IsMarked);
             Assert.IsTrue(_aimController.IsAiming);
@@ -319,7 +321,7 @@ namespace LuckyDuelist.Tests
         public void TurnCommitted_WithoutAttack_DoesNotStartAimStabilizer()
         {
             var symbols = new List<SlotSymbol> { SlotSymbol.HEAL, SlotSymbol.COUNTER_SHARPEN };
-            EventBus.Publish(new TurnCommittedEvent(1, symbols, new SlotSymbol?[2]));
+            EventBus.Publish(new TurnCommittedEvent(1, symbols));
 
             Assert.IsFalse(_aimController.IsAiming);
             Assert.AreEqual(AimStabilizerController.AimState.Inactive, _aimController.CurrentState);

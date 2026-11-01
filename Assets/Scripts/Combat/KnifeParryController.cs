@@ -19,6 +19,11 @@ namespace LuckyDuelist.Combat
     {
         public static KnifeParryController Instance { get; private set; }
 
+        [Header("Mode Configuration")]
+        [Tooltip("When true, knife uses 2D Orthographic coordinates matching RightHand_Weapon")]
+        [SerializeField] private bool is2DMode = true;
+        [SerializeField] private SpriteRenderer knifeSpriteRenderer;
+
         [Header("Transform & Visual Rig")]
         [Tooltip("Root transform of the knife in the player's left hand.")]
         [SerializeField] private Transform knifeTransform;
@@ -26,10 +31,10 @@ namespace LuckyDuelist.Combat
         [SerializeField] private TrailRenderer slashTrailRenderer;
 
         [Header("Pose Coordinates (Local to Camera Rig)")]
-        [SerializeField] private Vector3 idleLocalPosition = new Vector3(-0.35f, -0.28f, 0.45f);
-        [SerializeField] private Vector3 idleLocalEuler = new Vector3(15f, 30f, -20f);
-        [SerializeField] private Vector3 parryCenterLocalPosition = new Vector3(0.02f, -0.06f, 0.38f);
-        [SerializeField] private Vector3 parryCenterLocalEuler = new Vector3(-10f, -25f, 55f);
+        [SerializeField] private Vector3 idleLocalPosition = new Vector3(-5.2f, -2.8f, 10f);
+        [SerializeField] private Vector3 idleLocalEuler = new Vector3(0f, 0f, 25f);
+        [SerializeField] private Vector3 parryCenterLocalPosition = new Vector3(-0.6f, -0.4f, 10f);
+        [SerializeField] private Vector3 parryCenterLocalEuler = new Vector3(0f, 0f, -45f);
 
         [Header("Parry Timing (TSD Section 2.4)")]
         [Tooltip("Total duration of the swing & recovery in seconds (default: 0.40s)")]
@@ -76,7 +81,8 @@ namespace LuckyDuelist.Combat
         {
             if (Instance != null && Instance != this)
             {
-                Destroy(gameObject);
+                if (Application.isPlaying) Destroy(this);
+                else DestroyImmediate(this);
                 return;
             }
             Instance = this;
@@ -233,6 +239,11 @@ namespace LuckyDuelist.Combat
                 {
                     knifeRenderer.material.SetColor("_EmissionColor", emissiveColor);
                 }
+            }
+
+            if (knifeSpriteRenderer != null)
+            {
+                knifeSpriteRenderer.color = bladeColor;
             }
 
             if (slashTrailRenderer != null)

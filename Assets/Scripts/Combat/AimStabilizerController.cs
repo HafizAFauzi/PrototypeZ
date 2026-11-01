@@ -41,7 +41,7 @@ namespace LuckyDuelist.Combat
         [Tooltip("Frequency of the Perlin Noise drift pattern")]
         [SerializeField] private float driftFrequency = 2.0f;
         [Tooltip("Movement speed of the drift in pixels/sec")]
-        [SerializeField] private float driftSpeed = 320f;
+        [SerializeField] private float driftSpeed = 340f;
         [Tooltip("Player mouse/touch counter-drag sensitivity")]
         [SerializeField] private float dragSensitivity = 1.25f;
 
@@ -49,7 +49,7 @@ namespace LuckyDuelist.Combat
         [Tooltip("Duration required inside vital circle before auto-fire triggers")]
         [SerializeField] private float requiredLockOnDuration = 1.0f;
         [Tooltip("Decay rate of lock-on meter per second when reticle leaves vital circle")]
-        [SerializeField] private float lockOnDecayRate = 0.6f;
+        [SerializeField] private float lockOnDecayRate = 0.5f;
         [Tooltip("Base shot damage (normal = 15)")]
         [SerializeField] private int baseDamage = 15;
         [Tooltip("Critical damage multiplier when enemy has [MARK] status (2.0x = 30)")]
@@ -57,7 +57,7 @@ namespace LuckyDuelist.Combat
 
         [Header("Burst Chaining Settings")]
         [Tooltip("Cooldown pause between burst shots")]
-        [SerializeField] private float burstIntervalSeconds = 0.28f;
+        [SerializeField] private float burstIntervalSeconds = 0.6f;
         [Tooltip("Reticle displacement kick magnitude upon firing")]
         [SerializeField] private float recoilKickMagnitude = 55f;
 
@@ -93,8 +93,7 @@ namespace LuckyDuelist.Combat
         private Vector2 _reticlePosition = Vector2.zero;
         private Vector2 _playerDragVelocity = Vector2.zero;
         private float _aimSessionTime = 0f;
-        private float _burstCooldownTimer = 0f;
-        private float _perlinSeedX = 0f;
+                private float _perlinSeedX = 0f;
         private float _perlinSeedY = 0f;
         private int _totalDamageDealtInSession = 0;
         private int _shotsFiredInSession = 0;
@@ -129,49 +128,83 @@ namespace LuckyDuelist.Combat
             }
         }
 
-        private void Awake()
-        {
-            if (Instance != null && Instance != this)
-            {
-                Destroy(gameObject);
-                return;
-            }
-            Instance = this;
+        private bool _isSubscribed = false;
 
-            EnsureAudioSource();
-            EnsureUIConstructed();
-        }
-
-        private void Start()
+        public void SubscribeEvents()
         {
+            if (_isSubscribed) return;
+            _isSubscribed = true;
             EventBus.Subscribe<TurnCommittedEvent>(OnTurnCommitted);
             EventBus.Subscribe<EnemyMarkStatusChangedEvent>(OnEnemyMarkStatusChanged);
             EventBus.Subscribe<EnemyHealthChangedEvent>(OnEnemyHealthChanged);
-
-            SetUIActive(false);
         }
 
-        private void OnDestroy()
+        public void UnsubscribeEvents()
         {
-            if (Instance == this) Instance = null;
-
+            if (!_isSubscribed) return;
+            _isSubscribed = false;
             EventBus.Unsubscribe<TurnCommittedEvent>(OnTurnCommitted);
             EventBus.Unsubscribe<EnemyMarkStatusChangedEvent>(OnEnemyMarkStatusChanged);
             EventBus.Unsubscribe<EnemyHealthChangedEvent>(OnEnemyHealthChanged);
         }
 
+        private void Awake()
+        {
+            if (Instance != null && Instance != this)
+            {
+                if (Application.isPlaying) Destroy(gameObject);
+                else DestroyImmediate(gameObject);
+                return;
+            }
+            Instance = this;
+
+            SubscribeEvents();
+
+            if (Application.isPlaying)
+            {
+                EnsureAudioSource();
+                EnsureUIConstructed();
+                SetUIActive(false);
+            }
+        }
+
+        private void OnEnable()
+        {
+            SubscribeEvents();
+        }
+
+        private void OnDisable()
+        {
+            UnsubscribeEvents();
+        }
+
+        private void OnDestroy()
+        {
+            UnsubscribeEvents();
+            if (Instance == this) Instance = null;
+        }
+
         private void Update()
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // Shortcut pengetesan langsung di Editor
+            if (Input.GetKeyDown(KeyCode.F5))
+            {
+                Debug.Log("<color=yellow>[AimStabilizer]</color> <b>Debug F5 ditekan:</b> Memicu sesi Aim Stabilizer (1x Attack Normal, 15 DMG)!");
+                BeginAimSession(1, debugForceMark: false);
+            }
+            else if (Input.GetKeyDown(KeyCode.F6))
+            {
+                Debug.Log("<color=yellow>[AimStabilizer]</color> <b>Debug F6 ditekan:</b> Memicu sesi Aim Stabilizer (2x Attack + MARK, Lingkaran Vital Membesar & 30 Crit DMG)!");
+                BeginAimSession(2, debugForceMark: true);
+            }
+#endif
+
             if (!IsAiming) return;
 
-            // Handle recoil interval between bursts
+            // Handle transition interval between slot attacks (handled by coroutine)
             if (_currentState == AimState.RecoilCooldown)
             {
-                _burstCooldownTimer -= Time.deltaTime;
-                if (_burstCooldownTimer <= 0f)
-                {
-                    StartNextBurstShot();
-                }
                 return;
             }
 
@@ -293,6 +326,8 @@ namespace LuckyDuelist.Combat
         /// </summary>
         public void BeginAimSession(int burstCount, bool debugForceMark = false)
         {
+            EnsureUIConstructed();
+
             if (debugForceMark && EnemyHealth.Instance != null)
             {
                 EnemyHealth.Instance.ApplyMark("DebugAimSession");
@@ -304,7 +339,7 @@ namespace LuckyDuelist.Combat
             _shotsFiredInSession = 0;
             _aimSessionTime = 0f;
 
-            Debug.Log($"<color=yellow>[AimStabilizer]</color> Aim session started! Total Bursts: {_totalBursts}, EnemyMarked: {IsTargetMarked()}");
+            Debug.Log($"<color=yellow>[AimStabilizer]</color> <b>Sesi Aim Dimulai!</b> Total Bursts: {_totalBursts}, EnemyMarked: {IsTargetMarked()}");
 
             SetUIActive(true);
             StartNextBurstShot();
@@ -365,6 +400,9 @@ namespace LuckyDuelist.Combat
 
             // Publish shot fired event
             int enemyHp = EnemyHealth.Instance != null ? EnemyHealth.Instance.CurrentHealth : 0;
+            int maxHp = EnemyHealth.Instance != null ? EnemyHealth.Instance.MaxHealth : 70;
+            string bar = EnemyHealth.GetHpBarString(enemyHp, maxHp, 10);
+            Debug.Log($"<color=cyan><b>[AimStabilizer]</b></color> <b>Tembakan Slot {burstNumber}/{_totalBursts} Sukses!</b> Damage: <b>{damage}</b> {(isMarked ? "<color=#FF0055>(CRIT 2X)</color>" : "")} | Sisa HP Musuh: <color=#00FFE0><b>{enemyHp}/{maxHp} HP</b></color> {bar}");
             EventBus.Publish(new AimShotFiredEvent(damage, isMarked, burstNumber, _totalBursts, enemyHp));
 
             // Check if enemy defeated or burst chain continues
@@ -374,16 +412,42 @@ namespace LuckyDuelist.Combat
 
             if (_currentBurstIndex < _totalBursts && !enemyDefeated)
             {
-                // Proceed to next burst in the chain
+                // Multi-Attack Slot: Transition sequentially to the next attack slot
                 _currentState = AimState.RecoilCooldown;
-                _burstCooldownTimer = burstIntervalSeconds;
                 _lockOnTimer = 0f;
+                StartCoroutine(NextSlotTransitionRoutine());
             }
             else
             {
                 // All bursts complete or enemy defeated!
                 CompleteAimSession(enemyDefeated);
             }
+        }
+
+        private IEnumerator NextSlotTransitionRoutine()
+        {
+            // 1. Brief pause for recoil kick & muzzle flash
+            yield return new WaitForSeconds(0.25f);
+
+            // 2. Close aim overlay for the transition
+            SetUIActive(false);
+
+            // 3. 0.6 second transition delay with active reel highlight in HUD
+            yield return new WaitForSeconds(burstIntervalSeconds);
+
+            // Check if enemy defeated during pause
+            if (EnemyHealth.Instance != null && !EnemyHealth.Instance.IsAlive)
+            {
+                CompleteAimSession(enemyDefeated: true);
+                yield break;
+            }
+
+            // 4. Reopen aim overlay for the next slot
+            SetUIActive(true);
+            StartNextBurstShot();
+
+            int enemyHp = EnemyHealth.Instance != null ? EnemyHealth.Instance.CurrentHealth : 0;
+            EventBus.Publish(new AimStabilizerStartedEvent(_totalBursts, _currentBurstIndex + 1, enemyHp, IsTargetMarked()));
         }
 
         /// <summary>
@@ -400,7 +464,7 @@ namespace LuckyDuelist.Combat
                 EnemyHealth.Instance.ClearMark("AttackSequenceCompleted");
             }
 
-            Debug.Log($"<color=green>[AimStabilizer]</color> Aim Sequence Completed! Total Shots: {_shotsFiredInSession}, Total Damage: {_totalDamageDealtInSession}, Defeated: {enemyDefeated}");
+            Debug.Log($"<color=green>[AimStabilizer]</color> <b>Sesi Aim Selesai!</b> Total Shots: {_shotsFiredInSession}, Total Damage: {_totalDamageDealtInSession}, Defeated: {enemyDefeated}");
             EventBus.Publish(new AimSequenceCompletedEvent(_shotsFiredInSession, _totalDamageDealtInSession, enemyDefeated));
 
             StartCoroutine(CloseSessionRoutine());
@@ -424,9 +488,10 @@ namespace LuckyDuelist.Combat
 
         private void UpdatePlayerInput()
         {
-            Vector2 inputDelta = Vector2.zero;
+            Vector2 framePixelDelta = Vector2.zero;
+            float dt = Mathf.Max(0.0001f, Time.deltaTime);
 
-            // Touch / Mouse Drag
+            // 1. Mouse Drag / Touch Drag (klik dan geser mouse)
             if (Input.GetMouseButtonDown(0))
             {
                 _isDragging = true;
@@ -440,22 +505,32 @@ namespace LuckyDuelist.Combat
             if (_isDragging)
             {
                 Vector2 currentPos = Input.mousePosition;
-                inputDelta = currentPos - _lastPointerPosition;
+                framePixelDelta += (currentPos - _lastPointerPosition);
                 _lastPointerPosition = currentPos;
             }
-            else
+
+            // 2. Free Mouse Movement (menggerakkan mouse secara langsung tanpa perlu klik terus-menerus)
+            float mouseX = Input.GetAxisRaw("Mouse X");
+            float mouseY = Input.GetAxisRaw("Mouse Y");
+            if (Mathf.Abs(mouseX) > 0.001f || Mathf.Abs(mouseY) > 0.001f)
             {
-                // Fallback to mouse movement axis for PC responsiveness
-                float mouseX = Input.GetAxisRaw("Mouse X");
-                float mouseY = Input.GetAxisRaw("Mouse Y");
-                if (Mathf.Abs(mouseX) > 0.01f || Mathf.Abs(mouseY) > 0.01f)
-                {
-                    inputDelta = new Vector2(mouseX, mouseY) * 12f;
-                }
+                framePixelDelta += new Vector2(mouseX, mouseY) * 14f;
             }
 
-            // Calculate player velocity
-            _playerDragVelocity = CalculatePlayerVelocity(inputDelta, dragSensitivity, invert: false);
+            // 3. Keyboard Steering (WASD / Tombol Panah untuk kontrol tambahan yang nyaman)
+            float h = Input.GetAxisRaw("Horizontal");
+            float v = Input.GetAxisRaw("Vertical");
+            if (Mathf.Abs(h) > 0.01f || Mathf.Abs(v) > 0.01f)
+            {
+                framePixelDelta += new Vector2(h, v) * (280f * dt);
+            }
+
+            // Konversi frame delta ke kecepatan (px/sec) agar saat diintegrasikan dengan deltaTime
+            // menghasilkan pergerakan 1:1 yang presisi dan responsif
+            // Konversi frame delta ke kecepatan (px/sec), dibagi 2 (0.5x) sesuai instruksi agar kontrol lebih berbobot & menantang
+            Vector2 inputVelocity = (framePixelDelta / dt) * 0.5f;
+
+            _playerDragVelocity = CalculatePlayerVelocity(inputVelocity, dragSensitivity, invert: false);
         }
 
         #endregion
@@ -526,15 +601,22 @@ namespace LuckyDuelist.Combat
             {
                 if (progress >= 0.999f)
                 {
-                    lockOnText.text = "<b><color=#FF0055>100% AUTO-FIRE!</color></b>";
+                    lockOnText.text = "<b><color=#FF0055>100% AUTO-FIRE! TEMBAK!</color></b>";
                 }
                 else if (isInsideVital)
                 {
-                    lockOnText.text = $"LOCKING ON: {Mathf.RoundToInt(progress * 100f)}%";
+                    lockOnText.text = $"MENGUNCI SASARAN: {Mathf.RoundToInt(progress * 100f)}% (TAHAN!)";
                 }
                 else
                 {
-                    lockOnText.text = "STABILIZE IN VITAL CIRCLE";
+                    if (_totalBursts > 1)
+                    {
+                        lockOnText.text = $"SLOT {_currentBurstIndex + 1}: ARAHKAN KE LINGKARAN VITAL // AUTO-FIRE 100%";
+                    }
+                    else
+                    {
+                        lockOnText.text = "ARAHKAN KE LINGKARAN VITAL // AUTO-FIRE 100%";
+                    }
                 }
             }
         }
@@ -545,7 +627,7 @@ namespace LuckyDuelist.Combat
             {
                 if (_totalBursts > 1)
                 {
-                    burstStatusText.text = $"<color=#FFE600>[BURST CHAIN {_currentBurstIndex + 1}/{_totalBursts}]</color>";
+                    burstStatusText.text = $"<color=#FFE600>[ATTACK SLOT {_currentBurstIndex + 1}/{_totalBursts}]</color>";
                 }
                 else
                 {
@@ -601,12 +683,14 @@ namespace LuckyDuelist.Combat
             if (floatingTextContainer == null) return;
 
             GameObject textGo = new GameObject("FloatingDamageText");
+            textGo.layer = 5;
             var rect = textGo.AddComponent<RectTransform>();
             rect.SetParent(floatingTextContainer, false);
             rect.anchoredPosition = _reticlePosition + new Vector2(UnityEngine.Random.Range(-20f, 20f), 20f);
+            rect.localScale = Vector3.one;
 
             var text = textGo.AddComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf") ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.font = GetDefaultFont();
             text.alignment = TextAnchor.MiddleCenter;
             text.fontSize = isCritical ? 34 : 26;
             text.fontStyle = FontStyle.Bold;
@@ -654,6 +738,10 @@ namespace LuckyDuelist.Combat
             if (targetBoxRoot != null)
             {
                 targetBoxRoot.gameObject.SetActive(active);
+                if (active)
+                {
+                    targetBoxRoot.SetAsLastSibling();
+                }
             }
         }
 
@@ -737,10 +825,17 @@ namespace LuckyDuelist.Combat
                 }
             }
 
+            Debug.Log($"<color=orange>[AimStabilizer]</color> <b>OnTurnCommitted Diterima!</b> Simbol: [{string.Join(", ", evt.ExecutedSymbols)}], Jumlah ATTACK: {attackCount}");
+
             // 3. Trigger Aim Stabilizer if player committed 1x, 2x, or 3x Attack!
             if (attackCount > 0)
             {
+                Debug.Log($"<color=lime>[AimStabilizer]</color> <b>MEMULAI SESI AIM STABILIZER!</b> ({attackCount}x BURST SHOTS)");
                 BeginAimSession(attackCount);
+            }
+            else
+            {
+                Debug.Log($"<color=cyan>[AimStabilizer]</color> Giliran ini tidak memiliki simbol [ATTACK]. Aim Stabilizer standby.");
             }
         }
 
@@ -765,11 +860,46 @@ namespace LuckyDuelist.Combat
 
         #region Procedural Cyberpunk UI Construction
 
-        private void EnsureUIConstructed()
+        private static Font GetDefaultFont()
         {
-            if (targetBoxRoot != null) return;
+            try
+            {
+                Font f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                if (f != null) return f;
+            }
+            catch {}
 
-            // Find or create Canvas
+            try
+            {
+                Font[] allFonts = Resources.FindObjectsOfTypeAll<Font>();
+                if (allFonts != null && allFonts.Length > 0)
+                {
+                    for (int i = 0; i < allFonts.Length; i++)
+                    {
+                        if (allFonts[i] != null) return allFonts[i];
+                    }
+                }
+            }
+            catch {}
+
+            return null;
+        }
+
+        public void EnsureUIConstructed()
+        {
+            try
+            {
+                BuildProceduralUI();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[AimStabilizerController] Procedural UI fallback notice: {ex.Message}");
+            }
+        }
+
+        private void BuildProceduralUI()
+        {
+            // Find or create Canvas if missing
             if (aimCanvas == null)
             {
                 aimCanvas = FindObjectOfType<Canvas>();
@@ -783,8 +913,20 @@ namespace LuckyDuelist.Combat
                 }
             }
 
+            if (targetBoxRoot != null)
+            {
+                // Ensure target box is parented to current canvas
+                if (targetBoxRoot.parent != aimCanvas.transform)
+                {
+                    targetBoxRoot.SetParent(aimCanvas.transform, false);
+                }
+                targetBoxRoot.localScale = Vector3.one;
+                return;
+            }
+
             // Target Box Root (Floating Frame over Enemy)
             GameObject boxGo = new GameObject("TargetBox_Root");
+            boxGo.layer = 5; // Layer "UI"
             targetBoxRoot = boxGo.AddComponent<RectTransform>();
             targetBoxRoot.SetParent(aimCanvas.transform, false);
             targetBoxRoot.anchorMin = new Vector2(0.5f, 0.5f);
@@ -792,6 +934,8 @@ namespace LuckyDuelist.Combat
             targetBoxRoot.pivot = new Vector2(0.5f, 0.5f);
             targetBoxRoot.anchoredPosition = new Vector2(0f, 60f); // Centered and slightly elevated
             targetBoxRoot.sizeDelta = targetBoxSize;
+            targetBoxRoot.localScale = Vector3.one;
+            targetBoxRoot.SetAsLastSibling();
 
             // Semi-transparent Cyberpunk Background
             var bgImage = boxGo.AddComponent<Image>();
@@ -801,19 +945,21 @@ namespace LuckyDuelist.Combat
             outline.effectColor = new Color(0f, 0.9f, 1f, 0.6f);
             outline.effectDistance = new Vector2(2f, -2f);
 
-            Font font = Resources.GetBuiltinResource<Font>("Arial.ttf") ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            Font font = GetDefaultFont();
 
             // Header: Target Info
             GameObject headerGo = new GameObject("Header_TargetInfo");
+            headerGo.layer = 5;
             var headerRect = headerGo.AddComponent<RectTransform>();
             headerRect.SetParent(targetBoxRoot, false);
             headerRect.anchorMin = new Vector2(0.05f, 0.91f);
             headerRect.anchorMax = new Vector2(0.95f, 0.99f);
             headerRect.offsetMin = Vector2.zero;
             headerRect.offsetMax = Vector2.zero;
+            headerRect.localScale = Vector3.one;
 
             enemyHpText = headerGo.AddComponent<Text>();
-            enemyHpText.font = font;
+            if (font != null) enemyHpText.font = font;
             enemyHpText.text = "ENEMY HP: 70/70";
             enemyHpText.alignment = TextAnchor.MiddleLeft;
             enemyHpText.fontSize = 13;
@@ -822,15 +968,17 @@ namespace LuckyDuelist.Combat
 
             // Burst Counter Text (Top Right)
             GameObject burstGo = new GameObject("BurstStatus_Text");
+            burstGo.layer = 5;
             var burstRect = burstGo.AddComponent<RectTransform>();
             burstRect.SetParent(targetBoxRoot, false);
             burstRect.anchorMin = new Vector2(0.5f, 0.91f);
             burstRect.anchorMax = new Vector2(0.95f, 0.99f);
             burstRect.offsetMin = Vector2.zero;
             burstRect.offsetMax = Vector2.zero;
+            burstRect.localScale = Vector3.one;
 
             burstStatusText = burstGo.AddComponent<Text>();
-            burstStatusText.font = font;
+            if (font != null) burstStatusText.font = font;
             burstStatusText.text = "[SINGLE SHOT]";
             burstStatusText.alignment = TextAnchor.MiddleRight;
             burstStatusText.fontSize = 13;
@@ -839,21 +987,26 @@ namespace LuckyDuelist.Combat
 
             // MARK Status Badge (Under Header)
             markStatusBadge = new GameObject("Mark_Badge");
+            markStatusBadge.layer = 5;
             var markRect = markStatusBadge.AddComponent<RectTransform>();
             markRect.SetParent(targetBoxRoot, false);
             markRect.anchorMin = new Vector2(0.1f, 0.82f);
             markRect.anchorMax = new Vector2(0.9f, 0.89f);
             markRect.offsetMin = Vector2.zero;
             markRect.offsetMax = Vector2.zero;
+            markRect.localScale = Vector3.one;
 
             var markBg = markStatusBadge.AddComponent<Image>();
             markBg.color = new Color(0.8f, 0.1f, 0.5f, 0.75f);
 
-            markStatusText = new GameObject("Mark_Text").AddComponent<Text>();
+            var markTextGo = new GameObject("Mark_Text");
+            markTextGo.layer = 5;
+            markStatusText = markTextGo.AddComponent<Text>();
             markStatusText.transform.SetParent(markRect, false);
             markStatusText.rectTransform.anchorMin = Vector2.zero;
             markStatusText.rectTransform.anchorMax = Vector2.one;
-            markStatusText.font = font;
+            markStatusText.rectTransform.localScale = Vector3.one;
+            if (font != null) markStatusText.font = font;
             markStatusText.text = "TARGET MARKED // 2X CRIT";
             markStatusText.alignment = TextAnchor.MiddleCenter;
             markStatusText.fontSize = 12;
@@ -863,6 +1016,7 @@ namespace LuckyDuelist.Combat
 
             // Vital Circle (Sweet Spot)
             GameObject vitalGo = new GameObject("VitalCircle");
+            vitalGo.layer = 5;
             vitalCircleRect = vitalGo.AddComponent<RectTransform>();
             vitalCircleRect.SetParent(targetBoxRoot, false);
             vitalCircleRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -870,6 +1024,7 @@ namespace LuckyDuelist.Combat
             vitalCircleRect.pivot = new Vector2(0.5f, 0.5f);
             vitalCircleRect.anchoredPosition = vitalCircleOffset;
             vitalCircleRect.sizeDelta = new Vector2(baseVitalRadius * 2f, baseVitalRadius * 2f);
+            vitalCircleRect.localScale = Vector3.one;
 
             vitalCircleImage = vitalGo.AddComponent<Image>();
             vitalCircleImage.color = new Color(0f, 0.85f, 1f, 0.5f);
@@ -880,17 +1035,20 @@ namespace LuckyDuelist.Combat
 
             // Vital Sweet Spot Center Icon
             GameObject sweetSpotGo = new GameObject("SweetSpot_Icon");
+            sweetSpotGo.layer = 5;
             var sweetRect = sweetSpotGo.AddComponent<RectTransform>();
             sweetRect.SetParent(vitalCircleRect, false);
             sweetRect.anchorMin = new Vector2(0.35f, 0.35f);
             sweetRect.anchorMax = new Vector2(0.65f, 0.65f);
             sweetRect.offsetMin = Vector2.zero;
             sweetRect.offsetMax = Vector2.zero;
+            sweetRect.localScale = Vector3.one;
             var sweetImage = sweetSpotGo.AddComponent<Image>();
             sweetImage.color = new Color(1f, 1f, 1f, 0.85f);
 
             // Reticle (Crosshair)
             GameObject reticleGo = new GameObject("Reticle");
+            reticleGo.layer = 5;
             reticleRect = reticleGo.AddComponent<RectTransform>();
             reticleRect.SetParent(targetBoxRoot, false);
             reticleRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -898,6 +1056,7 @@ namespace LuckyDuelist.Combat
             reticleRect.pivot = new Vector2(0.5f, 0.5f);
             reticleRect.anchoredPosition = Vector2.zero;
             reticleRect.sizeDelta = new Vector2(36f, 36f);
+            reticleRect.localScale = Vector3.one;
 
             reticleImage = reticleGo.AddComponent<Image>();
             reticleImage.color = new Color(0f, 1f, 0.9f, 0.95f);
@@ -908,27 +1067,34 @@ namespace LuckyDuelist.Combat
 
             // Lock-On Slider Meter (Bottom of Target Box)
             GameObject sliderGo = new GameObject("LockOn_Slider");
+            sliderGo.layer = 5;
             var sliderRect = sliderGo.AddComponent<RectTransform>();
             sliderRect.SetParent(targetBoxRoot, false);
             sliderRect.anchorMin = new Vector2(0.08f, 0.05f);
             sliderRect.anchorMax = new Vector2(0.92f, 0.12f);
             sliderRect.offsetMin = Vector2.zero;
             sliderRect.offsetMax = Vector2.zero;
+            sliderRect.localScale = Vector3.one;
 
             lockOnSlider = sliderGo.AddComponent<Slider>();
             var sliderBg = sliderGo.AddComponent<Image>();
             sliderBg.color = new Color(0.12f, 0.15f, 0.22f, 0.9f);
 
-            var fillArea = new GameObject("Fill Area").AddComponent<RectTransform>();
+            var fillAreaGo = new GameObject("Fill Area");
+            fillAreaGo.layer = 5;
+            var fillArea = fillAreaGo.AddComponent<RectTransform>();
             fillArea.SetParent(sliderRect, false);
             fillArea.anchorMin = Vector2.zero;
             fillArea.anchorMax = Vector2.one;
             fillArea.sizeDelta = Vector2.zero;
+            fillArea.localScale = Vector3.one;
 
             var fillGo = new GameObject("Fill");
+            fillGo.layer = 5;
             var fillRect = fillGo.AddComponent<RectTransform>();
             fillRect.SetParent(fillArea, false);
             fillRect.sizeDelta = Vector2.zero;
+            fillRect.localScale = Vector3.one;
             lockOnFillImage = fillGo.AddComponent<Image>();
             lockOnFillImage.color = new Color(0f, 0.9f, 1f, 1f);
 
@@ -939,16 +1105,25 @@ namespace LuckyDuelist.Combat
 
             // Lock-On Status Text
             GameObject lockTextGo = new GameObject("LockOn_Text");
+            lockTextGo.layer = 5;
             var lockTextRect = lockTextGo.AddComponent<RectTransform>();
             lockTextRect.SetParent(targetBoxRoot, false);
             lockTextRect.anchorMin = new Vector2(0.08f, 0.13f);
             lockTextRect.anchorMax = new Vector2(0.92f, 0.19f);
             lockTextRect.offsetMin = Vector2.zero;
             lockTextRect.offsetMax = Vector2.zero;
+            lockTextRect.localScale = Vector3.one;
 
             lockOnText = lockTextGo.AddComponent<Text>();
-            lockOnText.font = font;
-            lockOnText.text = "STABILIZE IN VITAL CIRCLE";
+            if (font != null) lockOnText.font = font;
+            if (_totalBursts > 1)
+                    {
+                        lockOnText.text = $"SLOT {_currentBurstIndex + 1}: ARAHKAN KE LINGKARAN VITAL // AUTO-FIRE 100%";
+                    }
+                    else
+                    {
+                        lockOnText.text = "ARAHKAN KE LINGKARAN VITAL // AUTO-FIRE 100%";
+                    }
             lockOnText.alignment = TextAnchor.MiddleCenter;
             lockOnText.fontSize = 12;
             lockOnText.fontStyle = FontStyle.Bold;
@@ -956,21 +1131,25 @@ namespace LuckyDuelist.Combat
 
             // Floating Numbers Container
             GameObject floatGo = new GameObject("FloatingTextContainer");
+            floatGo.layer = 5;
             floatingTextContainer = floatGo.AddComponent<RectTransform>();
             floatingTextContainer.SetParent(targetBoxRoot, false);
             floatingTextContainer.anchorMin = Vector2.zero;
             floatingTextContainer.anchorMax = Vector2.one;
             floatingTextContainer.offsetMin = Vector2.zero;
             floatingTextContainer.offsetMax = Vector2.zero;
+            floatingTextContainer.localScale = Vector3.one;
 
             // Screen Muzzle Flash Overlay (Full Canvas)
             GameObject flashGo = new GameObject("ScreenMuzzleFlash");
+            flashGo.layer = 5;
             var flashRect = flashGo.AddComponent<RectTransform>();
             flashRect.SetParent(aimCanvas.transform, false);
             flashRect.anchorMin = Vector2.zero;
             flashRect.anchorMax = Vector2.one;
             flashRect.offsetMin = Vector2.zero;
             flashRect.offsetMax = Vector2.zero;
+            flashRect.localScale = Vector3.one;
 
             screenFlashImage = flashGo.AddComponent<Image>();
             screenFlashImage.color = new Color(1f, 1f, 1f, 0f);
