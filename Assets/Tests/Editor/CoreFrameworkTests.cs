@@ -25,6 +25,7 @@ namespace LuckyDuelist.Tests
 
             _experimentManagerGo = new GameObject("TestExperimentManager");
             _experimentManager = _experimentManagerGo.AddComponent<ExperimentManager>();
+            _experimentManager.InitializeExperiment();
 
             _gameManagerGo = new GameObject("TestGameManager");
             _gameManager = _gameManagerGo.AddComponent<GameManager>();
